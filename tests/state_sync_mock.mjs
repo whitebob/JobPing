@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { createJobId } from "../experiment_group/jobping_id.mjs";
 import { StateSync } from "../experiment_group/jobping_state_sync.mjs";
-import { MockTransportAdapter } from "../experiment_group/jobping_transport_mock.mjs";
+import { TransportLayerMock } from "../experiment_group/jobping_transport_layer.mjs";
 
-const transport = new MockTransportAdapter();
+const transport = new TransportLayerMock();
 const stateSync = new StateSync({ transportLayer: transport });
 const jobId = createJobId();
 

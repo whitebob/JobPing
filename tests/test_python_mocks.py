@@ -12,9 +12,9 @@ from experiment_group.jobping_endpoint_proxy import EndpointProxy
 from experiment_group.jobping_envelope_mock import MockEnvelopeEndpoint
 from experiment_group.jobping_jpitem_queue_mock import MockJPItemQueue
 from experiment_group.jobping_result_handoff import ResultHandoff
-from experiment_group.jobping_server_mock import JobPingServerMock, is_jobping_disabled, jobping
+from experiment_group.jobping_server_mock import JobPing, is_jobping_disabled, jobping
 from experiment_group.jobping_state_sync import StateSync
-from experiment_group.jobping_transport_mock import MockTransportAdapter
+from experiment_group.jobping_transport_layer import TransportLayerMock
 
 
 @pytest.mark.parametrize(
@@ -105,8 +105,8 @@ def test_server_mock_unload_switch_preserves_original_call_path(
 
 def test_server_mock_with_job_context_returns_job_ref_and_fulfills_result() -> None:
     async def run() -> None:
-        state_sync = StateSync(MockTransportAdapter())
-        result_handoff = ResultHandoff(MockTransportAdapter())
+        state_sync = StateSync(TransportLayerMock())
+        result_handoff = ResultHandoff(TransportLayerMock())
         producer_proxy = EndpointProxy(
             state_sync=state_sync,
             result_handoff=result_handoff,
@@ -118,7 +118,7 @@ def test_server_mock_with_job_context_returns_job_ref_and_fulfills_result() -> N
             queue=MockJPItemQueue(MockEnvelopeEndpoint()),
         )
         job_id = producer_proxy.create_job_id()
-        server_jobping = JobPingServerMock(
+        server_jobping = JobPing(
             endpoint_proxy=producer_proxy,
             job_context_provider=lambda *args, **kwargs: job_id,
         )

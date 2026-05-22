@@ -6,12 +6,12 @@ import pytest
 
 from experiment_group.jobping_id import create_job_id
 from experiment_group.jobping_state_sync import StateSync
-from experiment_group.jobping_transport_mock import MockTransportAdapter
+from experiment_group.jobping_transport_layer import TransportLayerMock
 
 
 def test_state_sync_publish_and_wait_for_state_context() -> None:
     async def run() -> None:
-        transport = MockTransportAdapter()
+        transport = TransportLayerMock()
         state_sync = StateSync(transport)
         job_id = create_job_id()
 
@@ -34,7 +34,7 @@ def test_state_sync_publish_and_wait_for_state_context() -> None:
 
 
 def test_state_sync_validates_job_id_and_status() -> None:
-    state_sync = StateSync(MockTransportAdapter())
+    state_sync = StateSync(TransportLayerMock())
 
     with pytest.raises(ValueError, match="job_id must be a non-empty string"):
         state_sync.publish("", "running")

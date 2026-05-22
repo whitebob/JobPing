@@ -1,11 +1,11 @@
-// Mock client-side JobPing SDK for usage-first TDD examples.
+// Client-side JobPing SDK facade for usage-first TDD examples.
 
 import { EndpointProxy } from "./jobping_endpoint_proxy.mjs";
 import { MockEnvelopeEndpoint } from "./jobping_envelope_mock.mjs";
 import { MockJPItemQueue } from "./jobping_jpitem_queue_mock.mjs";
 import { ResultHandoff } from "./jobping_result_handoff.mjs";
 import { StateSync } from "./jobping_state_sync.mjs";
-import { MockTransportAdapter } from "./jobping_transport_mock.mjs";
+import { TransportLayerMock } from "./jobping_transport_layer.mjs";
 
 export function isJobPingDisabled() {
   if (globalThis.__JOBPING_DISABLED__ === true) {
@@ -19,16 +19,16 @@ export function isJobPingDisabled() {
 function createDefaultEndpointProxy() {
   return new EndpointProxy({
     stateSync: new StateSync({
-      transportLayer: new MockTransportAdapter(),
+      transportLayer: new TransportLayerMock(),
     }),
     resultHandoff: new ResultHandoff({
-      transportLayer: new MockTransportAdapter(),
+      transportLayer: new TransportLayerMock(),
     }),
     queue: new MockJPItemQueue(new MockEnvelopeEndpoint()),
   });
 }
 
-export class JobPingClientMock {
+export class JobPing {
   constructor({ endpointProxy = createDefaultEndpointProxy() } = {}) {
     this.endpointProxy = endpointProxy;
   }
@@ -61,4 +61,5 @@ export class JobPingClientMock {
   }
 }
 
-export const jobping = new JobPingClientMock();
+export const JobPingClientMock = JobPing;
+export const jobping = new JobPing();

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Protocol, TypedDict
 
-from experiment_group.jobping_transport_mock import TransportMessage
+from experiment_group.jobping_transport_layer import TransportMessage
 
 
 JOBPING_STATE_UPDATE = "jobping.state_update.v1"

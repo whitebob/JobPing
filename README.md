@@ -59,6 +59,17 @@ Current semantic operations:
 - `ResultHandoff.fulfill(job_id, result)`
 - `ResultHandoff.awaitResult/await_result(job_id)`
 
+## JobPing facade
+
+`JobPing` is the top-level wrapper facade. Its public surface is intentionally small: `wrap(...)`.
+
+Current role-specific behavior lives at the facade edge:
+
+- client-side `JobPing.wrap(callable)` calls the opaque callable, detects a returned `job_ref`, then uses `EndpointProxy` to `accept -> awaitResult -> release`.
+- server-side `JobPing.wrap()(callable)` inspects the injected job context provider; with a job context it `offer -> defer -> fulfill_later` and returns a `job_ref`, otherwise it calls the opaque callable normally.
+
+The facade depends on `EndpointProxy`, not directly on `TransportLayer`, `StateSync`, or `ResultHandoff`.
+
 ## EndpointProxy composition
 
 `EndpointProxy` is the upper-level composition root used by wrappers. It does not receive a `TransportLayer` directly. Instead, transport is injected into semantic services first, then those semantic-service instances are injected into `EndpointProxy`.
@@ -112,11 +123,11 @@ Current result envelope operations:
 
 `job_ref` and routing belong closer to `TransportLayer`/`EndpointProxy` signaling than to result envelope semantics.
 
-## Job IDs and transport adapters
+## Job IDs and transport layers
 
 `job_id` generation is not mocked. Current JavaScript and Python helpers use UUID v4 directly.
 
-The transport adapter remains deliberately thin. Its job is to carry JobPing metadata and semantic-service messages, not to manage JPItem lifecycle or inspect business results. The current mock uses header-like metadata and in-memory message queues:
+`TransportLayer` is now the formal abstract boundary for moving JobPing metadata and semantic-service messages. It remains deliberately thin: it does not manage JPItem lifecycle or inspect business results. `TransportLayerMock` is the current concrete test implementation, using header-like metadata and in-memory message queues:
 
 - `attachJobId` / `attach_job_id`
 - `extractJobId` / `extract_job_id`
@@ -127,7 +138,7 @@ The transport adapter remains deliberately thin. Its job is to carry JobPing met
 - `sendMessage` / `send_message`
 - `recvMessage` / `recv_message`
 
-A real HTTP, WebSocket, SSE+POST, Kafka, Redis, or RabbitMQ adapter should be able to replace this mock without changing StateSync, ResultHandoff, queue, or envelope semantics.
+A real HTTP, WebSocket, SSE+POST, Kafka, Redis, or RabbitMQ `TransportLayer` subclass should be able to replace this mock without changing StateSync, ResultHandoff, queue, or envelope semantics.
 
 ## Failure semantics
 
@@ -215,7 +226,7 @@ mindmap
         Opaque input
         Opaque output
         No HTTP assumptions
-      Transport adapter
+      TransportLayer
         attach job_id
         extract job_id
         send message
@@ -237,11 +248,11 @@ mindmap
     Tests
       Envelope mock
       JPItem queue mock
-      Transport adapter mock
+      TransportLayerMock
       StateSync over mock transport
       ResultHandoff over mock transport
       EndpointProxy mock
-      Wrapper integration mocks
+      JobPing facade wrapper tests
       Fallback matrix
       Python pytest
 ```
@@ -258,7 +269,7 @@ This currently runs:
 
 - envelope mock tests
 - JPItem queue mock tests
-- transport adapter mock tests
+- TransportLayerMock tests
 - StateSync tests over mock transport
 - ResultHandoff tests over mock transport
 - EndpointProxy tests

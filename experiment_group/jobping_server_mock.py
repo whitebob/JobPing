@@ -1,4 +1,4 @@
-"""Mock server-side JobPing helper for usage-first TDD examples."""
+"""Server-side JobPing facade for usage-first TDD examples."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from experiment_group.jobping_envelope_mock import MockEnvelopeEndpoint
 from experiment_group.jobping_jpitem_queue_mock import MockJPItemQueue
 from experiment_group.jobping_result_handoff import ResultHandoff
 from experiment_group.jobping_state_sync import StateSync
-from experiment_group.jobping_transport_mock import MockTransportAdapter
+from experiment_group.jobping_transport_layer import TransportLayerMock
 
 
 Result = TypeVar("Result")
@@ -26,15 +26,13 @@ def is_jobping_disabled() -> bool:
 
 def create_default_endpoint_proxy() -> EndpointProxy:
     return EndpointProxy(
-        state_sync=StateSync(MockTransportAdapter()),
-        result_handoff=ResultHandoff(MockTransportAdapter()),
+        state_sync=StateSync(TransportLayerMock()),
+        result_handoff=ResultHandoff(TransportLayerMock()),
         queue=MockJPItemQueue(MockEnvelopeEndpoint()),
     )
 
 
-class JobPingServerMock:
-    """Placeholder for the future integrated boxing/ping helper."""
-
+class JobPing:
     def __init__(
         self,
         *,
@@ -86,4 +84,5 @@ class JobPingServerMock:
         return decorator
 
 
-jobping = JobPingServerMock()
+JobPingServerMock = JobPing
+jobping = JobPing()

@@ -2,10 +2,10 @@ import assert from "node:assert/strict";
 import { EndpointProxy } from "../experiment_group/jobping_endpoint_proxy.mjs";
 import { MockEnvelopeEndpoint } from "../experiment_group/jobping_envelope_mock.mjs";
 import { MockJPItemQueue } from "../experiment_group/jobping_jpitem_queue_mock.mjs";
-import { JobPingClientMock } from "../experiment_group/jobping_client_mock.mjs";
+import { JobPing } from "../experiment_group/jobping_client_mock.mjs";
 import { ResultHandoff } from "../experiment_group/jobping_result_handoff.mjs";
 import { StateSync } from "../experiment_group/jobping_state_sync.mjs";
-import { MockTransportAdapter } from "../experiment_group/jobping_transport_mock.mjs";
+import { TransportLayerMock } from "../experiment_group/jobping_transport_layer.mjs";
 
 function makeProxy({ stateSync, resultHandoff }) {
   return new EndpointProxy({
@@ -15,13 +15,13 @@ function makeProxy({ stateSync, resultHandoff }) {
   });
 }
 
-const stateSync = new StateSync({ transportLayer: new MockTransportAdapter() });
+const stateSync = new StateSync({ transportLayer: new TransportLayerMock() });
 const resultHandoff = new ResultHandoff({
-  transportLayer: new MockTransportAdapter(),
+  transportLayer: new TransportLayerMock(),
 });
 const producerProxy = makeProxy({ stateSync, resultHandoff });
 const consumerProxy = makeProxy({ stateSync, resultHandoff });
-const clientJobPing = new JobPingClientMock({ endpointProxy: consumerProxy });
+const clientJobPing = new JobPing({ endpointProxy: consumerProxy });
 const jobId = producerProxy.createJobId();
 
 producerProxy.offer(jobId);

@@ -13,13 +13,13 @@ from experiment_group.jobping_jpitem_queue_mock import (
 )
 from experiment_group.jobping_result_handoff import ResultHandoff
 from experiment_group.jobping_state_sync import StateSync
-from experiment_group.jobping_transport_mock import MockTransportAdapter
+from experiment_group.jobping_transport_layer import TransportLayerMock
 
 
 def test_endpoint_proxy_composes_state_sync_result_handoff_and_queue() -> None:
     async def run() -> None:
-        state_transport = MockTransportAdapter()
-        result_transport = MockTransportAdapter()
+        state_transport = TransportLayerMock()
+        result_transport = TransportLayerMock()
         state_sync = StateSync(state_transport)
         result_handoff = ResultHandoff(result_transport)
 
@@ -84,8 +84,8 @@ async def async_result(result: object) -> object:
 
 
 def test_endpoint_proxy_rejects_fulfill_without_offer() -> None:
-    state_sync = StateSync(MockTransportAdapter())
-    result_handoff = ResultHandoff(MockTransportAdapter())
+    state_sync = StateSync(TransportLayerMock())
+    result_handoff = ResultHandoff(TransportLayerMock())
     proxy = EndpointProxy(
         state_sync=state_sync,
         result_handoff=result_handoff,

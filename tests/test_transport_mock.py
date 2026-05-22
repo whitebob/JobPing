@@ -7,9 +7,10 @@ import pytest
 
 from experiment_group.jobping_envelope_mock import JOBPING_RESULT, MockEnvelopeEndpoint, box_result
 from experiment_group.jobping_id import create_job_id
-from experiment_group.jobping_transport_mock import (
+from experiment_group.jobping_transport_layer import (
     JOBPING_JOB_ID_HEADER,
-    MockTransportAdapter,
+    TransportLayer,
+    TransportLayerMock,
 )
 
 
@@ -20,8 +21,13 @@ def test_job_id_generation_uses_uuid() -> None:
     assert create_job_id() != job_id
 
 
+def test_transport_layer_is_abstract() -> None:
+    with pytest.raises(TypeError):
+        TransportLayer()
+
+
 def test_transport_adapter_attaches_and_extracts_job_id() -> None:
-    adapter = MockTransportAdapter()
+    adapter = TransportLayerMock()
     original_carrier = {"headers": {"x-existing": "yes"}}
     job_id = create_job_id()
 
@@ -35,7 +41,7 @@ def test_transport_adapter_attaches_and_extracts_job_id() -> None:
 
 
 def test_transport_adapter_attaches_and_extracts_envelope() -> None:
-    adapter = MockTransportAdapter()
+    adapter = TransportLayerMock()
     job_id = create_job_id()
     envelope = box_result(job_id, {"status": "OK"})
 
@@ -49,7 +55,7 @@ def test_transport_adapter_attaches_and_extracts_envelope() -> None:
 def test_transport_adapter_can_delegate_envelope_send_recv() -> None:
     async def run() -> None:
         endpoint = MockEnvelopeEndpoint()
-        adapter = MockTransportAdapter(envelope_endpoint=endpoint)
+        adapter = TransportLayerMock(envelope_endpoint=endpoint)
         job_id = create_job_id()
         envelope = box_result(job_id, {"status": "OK"})
 
@@ -63,7 +69,7 @@ def test_transport_adapter_can_delegate_envelope_send_recv() -> None:
 
 def test_transport_adapter_requires_endpoint_for_send_recv() -> None:
     async def run() -> None:
-        adapter = MockTransportAdapter()
+        adapter = TransportLayerMock()
         envelope = box_result(create_job_id(), {"status": "OK"})
 
         with pytest.raises(RuntimeError, match="No envelope endpoint configured"):

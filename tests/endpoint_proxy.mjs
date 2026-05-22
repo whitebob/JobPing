@@ -5,7 +5,7 @@ import { JPITEM_COMPLETED, JPITEM_QUEUED } from "../experiment_group/jobping_jpi
 import { MockJPItemQueue } from "../experiment_group/jobping_jpitem_queue_mock.mjs";
 import { ResultHandoff } from "../experiment_group/jobping_result_handoff.mjs";
 import { StateSync } from "../experiment_group/jobping_state_sync.mjs";
-import { MockTransportAdapter } from "../experiment_group/jobping_transport_mock.mjs";
+import { TransportLayerMock } from "../experiment_group/jobping_transport_layer.mjs";
 
 function makeProxy({ stateSync, resultHandoff }) {
   return new EndpointProxy({
@@ -15,8 +15,8 @@ function makeProxy({ stateSync, resultHandoff }) {
   });
 }
 
-const stateTransport = new MockTransportAdapter();
-const resultTransport = new MockTransportAdapter();
+const stateTransport = new TransportLayerMock();
+const resultTransport = new TransportLayerMock();
 const stateSync = new StateSync({ transportLayer: stateTransport });
 const resultHandoff = new ResultHandoff({ transportLayer: resultTransport });
 
