@@ -13,11 +13,12 @@ from time import perf_counter
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
-from jobping import create_jobping
-from jobping_sandbox import MockEnvelopeEndpoint, MockJPItemQueue, TransportLayerMock
+from jobping import create_jobping, TransportLayerWS
+from jobping_sandbox import MockEnvelopeEndpoint, MockJPItemQueue
 
+# Use WebSocket transport connected to the socket broker started by the test harness.
 jp = create_jobping(
-    transport_layer=TransportLayerMock(),
+    transport_layer=TransportLayerWS("http://127.0.0.1:8890"),
     queue=MockJPItemQueue(MockEnvelopeEndpoint()),
 )
 

@@ -9,10 +9,16 @@ import { performance } from "node:perf_hooks";
 import { createJobPing } from "../../packages/js/jobping.mjs";
 import { MockEnvelopeEndpoint } from "../../sandbox/js/envelope_endpoint_mock.mjs";
 import { MockJPItemQueue } from "../../sandbox/js/jpitem_queue_mock.mjs";
-import { TransportLayerMock } from "../../sandbox/js/transport_layer_mock.mjs";
+import { TransportLayerWS } from "../../packages/js/transport_layer_ws.mjs";
+
+const brokerUrl = (() => {
+  const prefix = `--brokerUrl=`;
+  const value = process.argv.find((item) => item.startsWith(prefix));
+  return value ? value.slice(prefix.length) : "http://127.0.0.1:8890";
+})();
 
 const jp = createJobPing({
-  transportLayer: new TransportLayerMock(),
+  transportLayer: new TransportLayerWS({ url: brokerUrl }),
   queue: new MockJPItemQueue(new MockEnvelopeEndpoint()),
 });
 
