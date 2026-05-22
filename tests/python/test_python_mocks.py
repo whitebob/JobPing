@@ -12,7 +12,7 @@ from jobping.endpoint_proxy import EndpointProxy
 from jobping_sandbox.envelope_endpoint_mock import MockEnvelopeEndpoint
 from jobping_sandbox.jpitem_queue_mock import MockJPItemQueue
 from jobping.result_handoff import ResultHandoff
-from jobping.server import JobPing, is_jobping_disabled
+from jobping.jobping import JobPing, is_jobping_disabled
 from jobping.state_sync import StateSync
 from jobping_sandbox import create_mock_endpoint_proxy
 from jobping_sandbox.transport_layer_mock import TransportLayerMock

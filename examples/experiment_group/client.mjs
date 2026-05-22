@@ -6,7 +6,12 @@
 
 import { performance } from "node:perf_hooks";
 
-import { jobping } from "./jobping_client_mock.mjs";
+import { JobPing } from "../../packages/js/jobping.mjs";
+import { createMockEndpointProxy } from "../../sandbox/js/create_mock_endpoint_proxy.mjs";
+
+const jobping = new JobPing({
+  endpointProxy: createMockEndpointProxy(),
+});
 
 function readOption(name, fallback) {
   const prefix = `--${name}=`;

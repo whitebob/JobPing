@@ -1,4 +1,4 @@
-"""Server-side JobPing facade."""
+"""JobPing wrapper facade."""
 
 from __future__ import annotations
 
@@ -70,5 +70,4 @@ class JobPing:
 
         return decorator
 
-JobPingServerMock = JobPing
 JobPingServerMock = JobPing
