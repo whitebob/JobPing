@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
-import { MockEnvelopeEndpoint } from "../experiment_group/jobping_envelope_mock.mjs";
+import { MockEnvelopeEndpoint } from "../../sandbox/js/envelope_endpoint_mock.mjs";
 import {
   JPITEM_COMPLETED,
   JPITEM_CREATED,
   JPITEM_QUEUED,
   JPITEM_WAITING,
   MockJPItemQueue,
-} from "../experiment_group/jobping_jpitem_queue_mock.mjs";
+} from "../../sandbox/js/jpitem_queue_mock.mjs";
 
 const endpoint = new MockEnvelopeEndpoint();
 const clientQueue = new MockJPItemQueue(endpoint);

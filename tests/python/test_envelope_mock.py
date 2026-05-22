@@ -4,30 +4,17 @@ import asyncio
 
 import pytest
 
-from examples.experiment_group.jobping_envelope_mock import (
-    JOBPING_JOB_REF,
+from jobping.envelope import (
     JOBPING_RESULT,
-    MockEnvelopeEndpoint,
-    box_job_ref,
     box_result,
     is_envelope,
-    is_job_ref_envelope,
     is_result_envelope,
     unbox_result,
 )
+from jobping_sandbox.envelope_endpoint_mock import MockEnvelopeEndpoint
 
 
 def test_boxing_and_unboxing_result_envelopes() -> None:
-    job_ref = box_job_ref("job-1")
-    assert job_ref == {
-        "jobping": "jobping.envelope.v1",
-        "type": JOBPING_JOB_REF,
-        "job_id": "job-1",
-    }
-    assert is_envelope(job_ref)
-    assert is_job_ref_envelope(job_ref)
-    assert not is_result_envelope(job_ref)
-
     payload = {"status": "OK", "value": 42}
     result = box_result("job-1", payload)
     assert is_envelope(result)
@@ -37,10 +24,10 @@ def test_boxing_and_unboxing_result_envelopes() -> None:
 
 def test_envelope_validation_rejects_wrong_shape() -> None:
     with pytest.raises(ValueError, match="job_id must be a non-empty string"):
-        box_job_ref("")
+        box_result("", {"status": "OK"})
 
     with pytest.raises(ValueError, match="Expected JobPing result envelope"):
-        unbox_result(box_job_ref("job-1"))
+        unbox_result({"jobping": "jobping.envelope.v1", "type": "job_ref", "job_id": "job-1"})
 
     with pytest.raises(ValueError, match="Unexpected JobPing result job_id"):
         unbox_result(box_result("job-1", {"status": "OK"}), expected_job_id="job-2")

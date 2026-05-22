@@ -8,13 +8,16 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from examples.experiment_group.jobping_endpoint_proxy import EndpointProxy
-from examples.experiment_group.jobping_envelope_mock import MockEnvelopeEndpoint
-from examples.experiment_group.jobping_jpitem_queue_mock import MockJPItemQueue
-from examples.experiment_group.jobping_result_handoff import ResultHandoff
-from examples.experiment_group.jobping_server_mock import JobPing, is_jobping_disabled, jobping
-from examples.experiment_group.jobping_state_sync import StateSync
-from examples.experiment_group.jobping_transport_layer import TransportLayerMock
+from jobping.endpoint_proxy import EndpointProxy
+from jobping_sandbox.envelope_endpoint_mock import MockEnvelopeEndpoint
+from jobping_sandbox.jpitem_queue_mock import MockJPItemQueue
+from jobping.result_handoff import ResultHandoff
+from jobping.server import JobPing, is_jobping_disabled
+from jobping.state_sync import StateSync
+from jobping_sandbox import create_mock_endpoint_proxy
+from jobping_sandbox.transport_layer_mock import TransportLayerMock
+
+jobping = JobPing(endpoint_proxy=create_mock_endpoint_proxy())
 
 
 @pytest.mark.parametrize(

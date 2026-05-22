@@ -1,5 +1,10 @@
 import assert from "node:assert/strict";
-import { jobping } from "../experiment_group/jobping_client_mock.mjs";
+import { JobPing } from "../../packages/js/jobping.mjs";
+import { createMockEndpointProxy } from "../../sandbox/js/create_mock_endpoint_proxy.mjs";
+
+const jobping = new JobPing({
+  endpointProxy: createMockEndpointProxy(),
+});
 
 async function captureConsoleLogs(call) {
   const originalLog = console.log;

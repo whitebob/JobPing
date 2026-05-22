@@ -4,13 +4,16 @@ JobPing is a small endpoint rendezvous bridge for `JPItem` state synchronization
 
 The core goal is narrow: move necessary waiting away from a remote application connection and onto a local endpoint wait point, while preserving the wrapped service's original input, output, and failure semantics.
 
-## Examples layout
+## Current layout
 
-The current runnable control group, evolving JobPing example implementation, and their regression tests live under `examples/`:
+The current branch separates SDK code, runnable examples, tests, and mock-only helpers:
 
+- `packages/js/`: JavaScript SDK classes.
+- `packages/python/jobping/`: Python SDK package.
 - `examples/control_group/`: baseline FastAPI + JavaScript client behavior without JobPing.
-- `examples/experiment_group/`: the current expected JobPing shape, including `JobPing`, `EndpointProxy`, `StateSync`, `ResultHandoff`, and `TransportLayer`.
-- `examples/tests/`: tests for both examples and the current semantic-layer contracts.
+- `examples/experiment_group/`: runnable example wiring around the current SDK shape.
+- `sandbox/js/` and `sandbox/python/jobping_sandbox/`: mock-only implementations and factories used by examples/tests.
+- `tests/js/` and `tests/python/`: regression tests split by runtime.
 
 ## Current design lens
 

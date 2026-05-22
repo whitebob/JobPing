@@ -5,13 +5,14 @@ from uuid import UUID
 
 import pytest
 
-from examples.experiment_group.jobping_envelope_mock import JOBPING_RESULT, MockEnvelopeEndpoint, box_result
-from examples.experiment_group.jobping_id import create_job_id
-from examples.experiment_group.jobping_transport_layer import (
+from jobping.envelope import JOBPING_RESULT, box_result
+from jobping.id import create_job_id
+from jobping.transport_layer import (
     JOBPING_JOB_ID_HEADER,
     TransportLayer,
-    TransportLayerMock,
 )
+from jobping_sandbox.envelope_endpoint_mock import MockEnvelopeEndpoint
+from jobping_sandbox.transport_layer_mock import TransportLayerMock
 
 
 def test_job_id_generation_uses_uuid() -> None:

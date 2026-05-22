@@ -1,9 +1,3 @@
-"""JobPing job_id generation."""
+from jobping.id import create_job_id
 
-from __future__ import annotations
-
-from uuid import uuid4
-
-
-def create_job_id() -> str:
-    return str(uuid4())
+__all__ = ["create_job_id"]

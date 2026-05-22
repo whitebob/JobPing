@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
-import { EndpointProxy } from "../experiment_group/jobping_endpoint_proxy.mjs";
-import { MockEnvelopeEndpoint } from "../experiment_group/jobping_envelope_mock.mjs";
-import { MockJPItemQueue } from "../experiment_group/jobping_jpitem_queue_mock.mjs";
-import { JobPing } from "../experiment_group/jobping_client_mock.mjs";
-import { ResultHandoff } from "../experiment_group/jobping_result_handoff.mjs";
-import { StateSync } from "../experiment_group/jobping_state_sync.mjs";
-import { TransportLayerMock } from "../experiment_group/jobping_transport_layer.mjs";
+import { EndpointProxy } from "../../packages/js/endpoint_proxy.mjs";
+import { MockEnvelopeEndpoint } from "../../sandbox/js/envelope_endpoint_mock.mjs";
+import { MockJPItemQueue } from "../../sandbox/js/jpitem_queue_mock.mjs";
+import { JobPing } from "../../packages/js/jobping.mjs";
+import { ResultHandoff } from "../../packages/js/result_handoff.mjs";
+import { StateSync } from "../../packages/js/state_sync.mjs";
+import { TransportLayerMock } from "../../sandbox/js/transport_layer_mock.mjs";
 
 function makeProxy({ stateSync, resultHandoff }) {
   return new EndpointProxy({

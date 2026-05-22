@@ -46,6 +46,12 @@ function startServer(server) {
       String(server.port),
     ],
     {
+      env: {
+        ...process.env,
+        PYTHONPATH: ["packages/python", "sandbox/python", ".", process.env.PYTHONPATH]
+          .filter(Boolean)
+          .join(":"),
+      },
       stdio: ["ignore", "pipe", "pipe"],
     },
   );

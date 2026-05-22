@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
-import { createJobId } from "../experiment_group/jobping_id.mjs";
-import { ResultHandoff } from "../experiment_group/jobping_result_handoff.mjs";
-import { TransportLayerMock } from "../experiment_group/jobping_transport_layer.mjs";
+import { createJobId } from "../../packages/js/id.mjs";
+import { ResultHandoff } from "../../packages/js/result_handoff.mjs";
+import { TransportLayerMock } from "../../sandbox/js/transport_layer_mock.mjs";
 
 const transport = new TransportLayerMock();
 const resultHandoff = new ResultHandoff({ transportLayer: transport });

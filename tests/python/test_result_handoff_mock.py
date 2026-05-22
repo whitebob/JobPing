@@ -4,9 +4,9 @@ import asyncio
 
 import pytest
 
-from examples.experiment_group.jobping_id import create_job_id
-from examples.experiment_group.jobping_result_handoff import ResultHandoff
-from examples.experiment_group.jobping_transport_layer import TransportLayerMock
+from jobping.id import create_job_id
+from jobping.result_handoff import ResultHandoff
+from jobping_sandbox.transport_layer_mock import TransportLayerMock
 
 
 def test_result_handoff_fulfills_and_awaits_result() -> None:

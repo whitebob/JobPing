@@ -1,5 +1,1 @@
-import { randomUUID } from "node:crypto";
-
-export function createJobId() {
-  return randomUUID();
-}
+export { createJobId } from "../../packages/js/id.mjs";
