@@ -6,6 +6,8 @@
   "scripts": {
     "control:server": "uvicorn control_group.server:app --host 127.0.0.1 --port 8888",
     "control:client": "node control_group/client.mjs",
-    "control:browser": "python3 -m http.server 8898 --directory control_group"
+    "control:browser": "python3 -m http.server 8898 --directory control_group",
+    "experiment:server": "uvicorn experiment_group.server:app --host 127.0.0.1 --port 8887",
+    "experiment:client": "node experiment_group/client.mjs"
   }
 }
