@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>JobPing Control Group Browser Client</title>
+    <link rel="stylesheet" href="./browser_client.css" />
+    <script defer src="./browser_client.js"></script>
+  </head>
+  <body>
+    <h1>JobPing control group browser client</h1>
+
+    <p>
+      This page intentionally does not use JobPing. It starts many concurrent
+      browser <code>fetch()</code> requests and waits on the remote FastAPI
+      endpoint directly.
+    </p>
+
+    <label>
+      FastAPI server URL
+      <input id="serverUrl" value="http://127.0.0.1:8888" />
+    </label>
+
+    <label>
+      Request count
+      <input id="requestCount" type="number" min="1" value="100" />
+    </label>
+
+    <label>
+      Sleep seconds per request
+      <input id="sleepSeconds" type="number" min="0" step="0.1" value="1" />
+    </label>
+
+    <button id="runButton">Run control group</button>
+
+    <h2>Result</h2>
+    <pre id="result">Click "Run control group" to start.</pre>
+  </body>
+</html>

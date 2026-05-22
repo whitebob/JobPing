@@ -1,0 +1,30 @@
+body {
+  font-family: system-ui, sans-serif;
+  line-height: 1.5;
+  margin: 2rem;
+  max-width: 900px;
+}
+
+label {
+  display: block;
+  margin-top: 1rem;
+}
+
+input {
+  font: inherit;
+  padding: 0.35rem;
+  width: 18rem;
+}
+
+button {
+  font: inherit;
+  margin-top: 1rem;
+  padding: 0.5rem 0.75rem;
+}
+
+pre {
+  background: #f6f8fa;
+  border: 1px solid #d0d7de;
+  overflow: auto;
+  padding: 1rem;
+}
