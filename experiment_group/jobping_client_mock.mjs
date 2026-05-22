@@ -1,8 +1,21 @@
 // Mock client-side JobPing SDK for usage-first TDD examples.
 
+export function isJobPingDisabled() {
+  if (globalThis.__JOBPING_DISABLED__ === true) {
+    return true;
+  }
+
+  const value = globalThis.process?.env?.JOBPING_DISABLED;
+  return typeof value === "string" && /^(1|true|yes|on)$/i.test(value);
+}
+
 export const jobping = {
   wrap(wrappedCallable) {
     return async function jobpingWrappedCallable(...args) {
+      if (isJobPingDisabled()) {
+        return wrappedCallable(...args);
+      }
+
       console.log("doing client_proxy.capture_call_input");
       // Wrapper layer:
       // - Treat ...args and the callable output as opaque values.

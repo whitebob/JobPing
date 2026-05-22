@@ -40,10 +40,10 @@ def test_jpitem_queue_lifecycle_and_envelope_handoff() -> None:
 
         completed_item = await waiting
         assert completed_item.status == JPITEM_COMPLETED
-        assert completed_item.payload is payload
+        assert completed_item.result is payload
         assert server_queue.get("job-1") is not None
         assert server_queue.get("job-1").status == JPITEM_COMPLETED  # type: ignore[union-attr]
-        assert server_queue.get("job-1").payload is payload  # type: ignore[union-attr]
+        assert server_queue.get("job-1").result is payload  # type: ignore[union-attr]
         assert endpoint.size() == {"pending": 0, "waiters": 0}
 
         client_queue.release("job-1")

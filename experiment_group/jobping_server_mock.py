@@ -2,12 +2,17 @@
 
 from __future__ import annotations
 
+import os
 from collections.abc import Awaitable, Callable
 from functools import wraps
 from typing import Any, TypeVar
 
 
 Result = TypeVar("Result")
+
+
+def is_jobping_disabled() -> bool:
+    return os.environ.get("JOBPING_DISABLED", "").lower() in {"1", "true", "yes", "on"}
 
 
 class JobPingServerMock:
@@ -21,6 +26,9 @@ class JobPingServerMock:
         ) -> Callable[..., Awaitable[Result]]:
             @wraps(wrapped_callable)
             async def wrapper(*args: Any, **kwargs: Any) -> Result:
+                if is_jobping_disabled():
+                    return await wrapped_callable(*args, **kwargs)
+
                 print("doing server_proxy.capture_call_input")
                 print("doing server_proxy.inspect_transport_context")
                 # Future flow:

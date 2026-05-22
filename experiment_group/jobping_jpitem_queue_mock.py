@@ -28,7 +28,7 @@ class MockJPItem:
     job_id: str
     role: JPItemRole
     status: JPItemStatus
-    payload: Any = None
+    result: Any = None
 
 
 def _assert_valid_job_id(job_id: str) -> None:
@@ -75,14 +75,14 @@ class MockJPItemQueue:
         item.status = JPITEM_QUEUED
         return item
 
-    def fulfill(self, job_id: str, payload: Any) -> MockJPItem:
+    def fulfill(self, job_id: str, result: Any) -> MockJPItem:
         item = self._resolve_item(job_id)
         if item.role != "producer":
             raise ValueError("Only offered JPItems can be fulfilled")
 
         item.status = JPITEM_COMPLETED
-        item.payload = payload
-        self.envelope_endpoint.send(box_result(job_id, payload))
+        item.result = result
+        self.envelope_endpoint.send(box_result(job_id, result))
         return item
 
     async def await_result(
@@ -101,7 +101,7 @@ class MockJPItemQueue:
             type=JOBPING_RESULT,
             timeout=timeout,
         )
-        item.payload = unbox_result(envelope, expected_job_id=job_id)
+        item.result = unbox_result(envelope, expected_job_id=job_id)
         item.status = JPITEM_COMPLETED
         return item
 
@@ -146,10 +146,10 @@ class MockJPItemQueue:
 # queue.defer(jp_item)
 # endpoint_proxy.fulfill_later(
 #     task=lambda: wrapped_callable(*args, **kwargs),
-#     on_done=lambda output: queue.fulfill(job_id, output),
+#     on_done=lambda result: queue.fulfill(job_id, result),
 # )
 #
 # Future consumer endpoint pseudocode:
 # queue.accept(job_id)
 # completed_item = await queue.await_result(job_id)
-# return completed_item.payload
+# return completed_item.result

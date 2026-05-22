@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from experiment_group.jobping_server_mock import jobping
+from experiment_group.jobping_server_mock import is_jobping_disabled, jobping
 
 
 @pytest.mark.parametrize(
@@ -78,3 +78,20 @@ def test_server_mock_preserves_wrapped_callable_metadata() -> None:
 
     assert wrapped.__name__ == "wrapped_callable"
     assert wrapped.__doc__ == "Business callable docstring."
+
+
+def test_server_mock_unload_switch_preserves_original_call_path(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setenv("JOBPING_DISABLED", "1")
+
+    async def wrapped_callable(value: int) -> dict[str, int | str]:
+        return {"value": value, "status": "OK"}
+
+    wrapped = jobping.wrap()(wrapped_callable)
+    output = asyncio.run(wrapped(7))
+
+    assert is_jobping_disabled()
+    assert output == {"value": 7, "status": "OK"}
+    assert capsys.readouterr().out == ""

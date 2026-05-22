@@ -31,9 +31,9 @@ serverQueue.fulfill("job-1", payload);
 
 const completedItem = await waited;
 assert.equal(completedItem.status, JPITEM_COMPLETED);
-assert.equal(completedItem.payload, payload);
+assert.equal(completedItem.result, payload);
 assert.equal(serverQueue.get("job-1").status, JPITEM_COMPLETED);
-assert.equal(serverQueue.get("job-1").payload, payload);
+assert.equal(serverQueue.get("job-1").result, payload);
 assert.deepEqual(endpoint.size(), { pending: 0, waiters: 0 });
 
 assert.throws(() => clientQueue.accept("job-1"), /JPItem already exists/);

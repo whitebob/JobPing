@@ -38,27 +38,92 @@ Preferred public vocabulary:
 
 `fulfillLater` is intentionally not locked down yet. The current mock records the intended semantics in comments while avoiding premature scheduling API design.
 
+## Semantic services and transport
+
+JobPing separates semantic services from transport mechanisms:
+
+| Layer | Responsibility |
+|---|---|
+| `StateSync` | Synchronizes `job_id + status + state_context`. |
+| `ResultHandoff` | Transfers `job_id + result` ownership/availability. |
+| `TransportLayer` | Moves messages through HTTP, WebSocket, SSE+POST, Kafka, Redis, RabbitMQ, or another carrier. |
+
+`StateSync` and `ResultHandoff` are peers. They may share one transport implementation, but they do not have to. Status updates are often lightweight and frequent, while result handoff may need stronger reliability, larger payload support, or a different storage/retrieval path.
+
+Current semantic mock operations:
+
+- `StateSync.publish(job_id, status, state_context)`
+- `StateSync.waitFor/wait_for(job_id, status=...)`
+- `ResultHandoff.fulfill(job_id, result)`
+- `ResultHandoff.awaitResult/await_result(job_id)`
+
+## EndpointProxy composition
+
+`EndpointProxy` is the upper-level composition root used by wrappers. It does not receive a `TransportLayer` directly. Instead, transport is injected into semantic services first, then those semantic-service instances are injected into `EndpointProxy`.
+
+```python
+state_sync = StateSync(transport_layer=status_transport)
+result_handoff = ResultHandoff(transport_layer=result_transport)
+
+endpoint_proxy = EndpointProxy(
+    state_sync=state_sync,
+    result_handoff=result_handoff,
+    queue=jpitem_queue,
+    create_job_id=create_job_id,
+)
+```
+
+This keeps the dependency direction clean:
+
+```text
+wrapper -> EndpointProxy -> StateSync / ResultHandoff / JPItemQueue
+                            StateSync / ResultHandoff -> TransportLayer
+```
+
+Current EndpointProxy operations:
+
+- `createJobId` / `create_job_id`
+- `offer`
+- `accept`
+- `defer`
+- `publishState` / `publish_state`
+- `waitForState` / `wait_for_state`
+- `fulfill`
+- `fulfillLater` / `fulfill_later`
+- `awaitResult` / `await_result`
+- `release`
+
 ## Envelope mock semantics
 
-The envelope layer is transport-neutral. It does not know HTTP, WebSocket, FastAPI, fetch, or any business-specific payload shape.
+The envelope layer is result-shape-neutral. It does not know HTTP, WebSocket, FastAPI, fetch, routing, status state machines, or any business-specific result shape.
 
-Current envelope types:
+Current result envelope operations:
 
-- `job_ref`: an offer to wait on a `job_id`.
-- `result`: a fulfilled opaque payload for a `job_id`.
-
-Current envelope operations:
-
-- `boxJobRef` / `box_job_ref`
 - `boxResult` / `box_result`
 - `isEnvelope` / `is_envelope`
-- `isJobRefEnvelope` / `is_job_ref_envelope`
 - `isResultEnvelope` / `is_result_envelope`
 - `unboxResult` / `unbox_result`
 - `MockEnvelopeEndpoint.send`
 - `MockEnvelopeEndpoint.recv`
 
-The JPItem queue uses the envelope mock for all result handoff behavior instead of duplicating boxing, unboxing, send, or receive logic.
+`job_ref` and routing belong closer to `TransportLayer`/`EndpointProxy` signaling than to result envelope semantics.
+
+## Job IDs and transport adapters
+
+`job_id` generation is not mocked. Current JavaScript and Python helpers use UUID v4 directly.
+
+The transport adapter remains deliberately thin. Its job is to carry JobPing metadata and semantic-service messages, not to manage JPItem lifecycle or inspect business results. The current mock uses header-like metadata and in-memory message queues:
+
+- `attachJobId` / `attach_job_id`
+- `extractJobId` / `extract_job_id`
+- `attachEnvelope` / `attach_envelope`
+- `extractEnvelope` / `extract_envelope`
+- `sendEnvelope` / `send_envelope`
+- `recvEnvelope` / `recv_envelope`
+- `sendMessage` / `send_message`
+- `recvMessage` / `recv_message`
+
+A real HTTP, WebSocket, SSE+POST, Kafka, Redis, or RabbitMQ adapter should be able to replace this mock without changing StateSync, ResultHandoff, queue, or envelope semantics.
 
 ## Failure semantics
 
@@ -67,6 +132,17 @@ JobPing should not convert producer exceptions into success-shaped payloads.
 The principle is: if the wrapped service would have failed before JobPing, it should still fail after JobPing. JobPing may move where waiting happens, but it must not become a silent node that swallows, normalizes, or prettifies producer failures.
 
 That means future execution semantics must preserve the original failure behavior rather than inventing an `{"status": "ERROR"}` result payload unless the wrapped application itself produced that payload.
+
+## Unload switch
+
+JobPing follows a scout rule: adding it should not make the system harder to debug. If a JobPing boundary exception is confusing, developers should be able to unload JobPing and compare against the original call path.
+
+Current mock unload controls:
+
+- Python/server side: set `JOBPING_DISABLED=1`.
+- JavaScript side: set `JOBPING_DISABLED=1` or `globalThis.__JOBPING_DISABLED__ = true`.
+
+When disabled at the `wrap` entry point, JobPing performs no capture, envelope, JPItem, print, or queue behavior. It calls the wrapped callable directly.
 
 ## Mermaid mind map
 
@@ -99,6 +175,20 @@ mindmap
       fulfill
         boxResult
         envelope send
+    Semantic services
+      StateSync
+        status
+        state_context
+        May use lightweight transport
+      ResultHandoff
+        result
+        May use reliable transport
+        Uses result envelope
+    EndpointProxy
+      Composes semantic services
+      Composes JPItemQueue
+      Exposes wrapper-facing API
+      Does not own TransportLayer directly
     Consumer endpoint
       accept
         Accept peer job_ref
@@ -109,9 +199,7 @@ mindmap
         Clear ownership
         Support leak checks
     Envelope layer
-      Transport neutral
-      job_ref
-        boxJobRef
+      Result shape neutral
       result
         boxResult
         unboxResult
@@ -124,9 +212,11 @@ mindmap
         Opaque output
         No HTTP assumptions
       Transport adapter
-        HTTP header maybe
-        WebSocket metadata maybe
-        RPC metadata maybe
+        attach job_id
+        extract job_id
+        send message
+        recv message
+        Replaceable by HTTP or WebSocket
       Queue
         JPItem lifecycle
         Envelope handoff
@@ -134,12 +224,19 @@ mindmap
       Without JobPing context
         Call wrapped function normally
         Return original output
+      JobPing disabled
+        Call wrapped function directly
+        No JobPing side effects
       With JobPing context
         Return job_ref quickly
         Fulfill result later
     Tests
       Envelope mock
       JPItem queue mock
+      Transport adapter mock
+      StateSync mock
+      ResultHandoff mock
+      EndpointProxy mock
       Fallback matrix
       Python pytest
 ```
@@ -156,5 +253,10 @@ This currently runs:
 
 - envelope mock tests
 - JPItem queue mock tests
+- transport adapter mock tests
+- StateSync mock tests
+- ResultHandoff mock tests
+- EndpointProxy tests
+- unload switch tests
 - control/experiment fallback matrix
 - Python pytest tests

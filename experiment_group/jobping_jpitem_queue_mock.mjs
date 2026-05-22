@@ -4,7 +4,7 @@
 // - offer(jobId): this endpoint promises to fulfill a JPItem later.
 // - accept(jobId): this endpoint accepts a peer's job_ref and prepares to wait.
 // - defer(item): marks an offered JPItem as deferred work.
-// - fulfill(jobId, payload): boxes output through the envelope mock and sends it.
+// - fulfill(jobId, result): boxes output through the envelope mock and sends it.
 // - awaitResult(jobId): receives a result envelope and unboxes it into the accepted item.
 // - release(jobId): explicit cleanup for leak-sensitive tests.
 //
@@ -34,7 +34,7 @@ function createItem(jobId, role, status) {
     job_id: jobId,
     role,
     status,
-    payload: undefined,
+    result: undefined,
   };
 }
 
@@ -76,15 +76,15 @@ export class MockJPItemQueue {
     return item;
   }
 
-  fulfill(jobId, payload) {
+  fulfill(jobId, result) {
     const item = this.resolveItem(jobId);
     if (item.role !== "producer") {
       throw new Error("Only offered JPItems can be fulfilled");
     }
 
     item.status = JPITEM_COMPLETED;
-    item.payload = payload;
-    this.envelopeEndpoint.send(boxResult(jobId, payload));
+    item.result = result;
+    this.envelopeEndpoint.send(boxResult(jobId, result));
     return item;
   }
 
@@ -100,10 +100,10 @@ export class MockJPItemQueue {
       type: JOBPING_RESULT,
       timeoutMs,
     });
-    const payload = unboxResult(envelope, jobId);
+    const result = unboxResult(envelope, jobId);
 
     item.status = JPITEM_COMPLETED;
-    item.payload = payload;
+    item.result = result;
     return item;
   }
 
