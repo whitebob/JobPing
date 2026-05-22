@@ -7,8 +7,8 @@ export const jobping = {
       // Wrapper layer:
       // - Treat ...args and the callable output as opaque values.
       // - Do not know HTTP, fetch, URL, server_endpoint, or websocket details.
-      // - Only handle JobPing context, boxed envelope detection, local JPItem wait,
-      //   and unboxing once the concrete transport adapter has carried the context.
+      // - Only handle JobPing context, boxed envelope detection, accepting a
+      //   peer offer, awaiting fulfillment, and releasing the JPItem.
       //
       // Transport adapter layer pseudocode:
       // const jobId = clientProxy.createJobId();
@@ -23,11 +23,11 @@ export const jobping = {
       // Future flow:
       // 1. Treat ...args as opaque call input.
       // 2. Establish provisional JobPing context without committing to a transport.
-      // 3. Call the wrapped callable. Its output may be a boxed job_id envelope.
-      // 4. If the output is boxed, create a local JPItem in client_proxy.
-      // 5. Await the local JPItem, not the original remote application request.
-      // 6. When client_proxy receives notification, run JPItem.on_call.
-      // 7. Unbox the opaque final output and resolve this Promise with it.
+      // 3. Call the wrapped callable. Its output may be a job_ref offer envelope.
+      // 4. If the output is a job_ref, accept it in the endpoint JPItem queue.
+      // 5. Await fulfillment locally, not through the original remote request.
+      // 6. Unbox the opaque final output and resolve this Promise with it.
+      // 7. Release the accepted JPItem when ownership is no longer needed.
       //
       // Pseudocode:
       const output = await wrappedCallable(...args);
@@ -35,17 +35,18 @@ export const jobping = {
       // if (!clientProxy.isBoxed(output)) {
       //   return output;
       // }
-      console.log("doing client_proxy.create_local_jpitem_if_boxed");
-      // The boxed job_id should match the client-owned JobPing context.
+      console.log("doing client_proxy.accept_offer_if_boxed");
+      // The offered job_id should match the client-owned JobPing context.
       // if (output.job_id !== jobId) {
       //   throw new Error("Unexpected boxed output job_id");
       // }
-      // const localItem = clientProxy.createLocalItem(output.job_id);
-      console.log("doing client_proxy.await_local_jpitem_if_boxed");
-      // const boxedOutput = await localItem.wait();
-      // const finalOutput = clientProxy.unbox(boxedOutput);
+      // endpointQueue.accept(output.job_id);
+      console.log("doing client_proxy.await_fulfillment_if_boxed");
+      // const completedItem = await endpointQueue.awaitResult(output.job_id);
+      // const finalOutput = completedItem.payload;
+      // endpointQueue.release(output.job_id);
       // return finalOutput;
-      console.log("doing local_jpitem.on_call_unbox_output_if_boxed");
+      console.log("doing accepted_jpitem.on_fulfilled_unbox_output_if_boxed");
       return output;
     };
   },

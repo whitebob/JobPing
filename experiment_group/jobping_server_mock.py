@@ -30,8 +30,8 @@ class JobPingServerMock:
                 #    websocket handshakes, client addresses, or framework details.
                 # 3. If no valid JobPing context exists, call the wrapped callable
                 #    normally and return its opaque output.
-                # 4. If valid JobPing context exists, create/register a remote
-                #    JPItem for that job_id and return a boxed envelope quickly.
+                # 4. If valid JobPing context exists, offer a producer JPItem for
+                #    that job_id and return a boxed job_ref envelope quickly.
                 # 5. Keep running the wrapped callable outside the open request.
                 # 6. Treat the callable return value as opaque call output.
                 # 7. Box that output and notify the waiting peer.
@@ -48,25 +48,22 @@ class JobPingServerMock:
                 #     output = await wrapped_callable(*args, **kwargs)
                 #     return output
                 #
-                # jp_item = server_proxy.create_remote_jpitem(job_id)
-                # server_proxy.enqueue_remote_jpitem(jp_item)
-                # server_proxy.run_later(
+                # jp_item = endpoint_queue.offer(job_id)
+                # endpoint_queue.defer(jp_item)
+                # endpoint_proxy.fulfill_later(
                 #     job_id=job_id,
                 #     task=lambda: wrapped_callable(*args, **kwargs),
-                #     on_done=lambda output: server_proxy.box_and_notify(
-                #         jp_item,
-                #         output,
-                #     ),
+                #     on_done=lambda output: endpoint_queue.fulfill(job_id, output),
                 # )
-                # return ResultEnvelope(job_id=job_id)
+                # return box_job_ref(job_id)
 
                 print("doing server_proxy.no_jobping_context_call_wrapped_callable")
                 output = await wrapped_callable(*args, **kwargs)
                 print("doing server_proxy.capture_call_output")
                 # With valid JobPing context, these would run in the deferred task:
-                # print("doing server_proxy.box_output")
-                # print("doing server_proxy.notify_client_proxy")
-                # print("doing server_proxy.return_boxed_job_id")
+                # print("doing endpoint_queue.fulfill")
+                # print("doing envelope_endpoint.send")
+                # print("doing server_proxy.return_job_ref_offer")
                 return output
 
             return wrapper
