@@ -93,6 +93,3 @@ def create_jobping(
         endpoint_proxy=endpoint_proxy,
         job_context_provider=job_context_provider,
     )
-
-
-JobPingServerMock = JobPingClass

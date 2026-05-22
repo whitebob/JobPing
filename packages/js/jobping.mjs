@@ -50,7 +50,6 @@ export class JobPing {
   }
 }
 
-export const JobPingClientMock = JobPing;
 export const JobPingClass = JobPing;
 
 export function createJobPing({
