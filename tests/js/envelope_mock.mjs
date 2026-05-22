@@ -6,7 +6,7 @@ import {
   isResultEnvelope,
   unboxResult,
 } from "../../packages/js/envelope.mjs";
-import { MockEnvelopeEndpoint } from "../../sandbox/js/envelope_endpoint_mock.mjs";
+import { EnvelopeEndpointInMemory as MockEnvelopeEndpoint } from "../../packages/js/envelope_endpoint.mjs";
 
 const payload = { status: "OK", value: 42 };
 const result = boxResult("job-1", payload);

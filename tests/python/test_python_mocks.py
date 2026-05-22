@@ -9,8 +9,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 from jobping.endpoint_proxy import EndpointProxy
-from jobping_sandbox.envelope_endpoint_mock import MockEnvelopeEndpoint
-from jobping_sandbox.jpitem_queue_mock import MockJPItemQueue
+from jobping.envelope_endpoint import EnvelopeEndpointInMemory as MockEnvelopeEndpoint
+from jobping.jpitem_queue import JPItemQueueInMemory as MockJPItemQueue
 from jobping.result_handoff import ResultHandoff
 from jobping.jobping import JobPing, is_jobping_disabled
 from jobping.state_sync import StateSync

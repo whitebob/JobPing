@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { EndpointProxy } from "../../packages/js/endpoint_proxy.mjs";
-import { MockEnvelopeEndpoint } from "../../sandbox/js/envelope_endpoint_mock.mjs";
-import { MockJPItemQueue } from "../../sandbox/js/jpitem_queue_mock.mjs";
+import { EnvelopeEndpointInMemory } from "../../packages/js/envelope_endpoint.mjs";
+import { JPItemQueueInMemory } from "../../packages/js/jpitem_queue.mjs";
 import { JobPing } from "../../packages/js/jobping.mjs";
 import { ResultHandoff } from "../../packages/js/result_handoff.mjs";
 import { StateSync } from "../../packages/js/state_sync.mjs";
@@ -11,7 +11,7 @@ function makeProxy({ stateSync, resultHandoff }) {
   return new EndpointProxy({
     stateSync,
     resultHandoff,
-    queue: new MockJPItemQueue(new MockEnvelopeEndpoint()),
+    queue: new JPItemQueueInMemory(new EnvelopeEndpointInMemory()),
   });
 }
 

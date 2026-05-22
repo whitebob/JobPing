@@ -1,8 +1,7 @@
 import assert from "node:assert/strict";
 import { EndpointProxy } from "../../packages/js/endpoint_proxy.mjs";
-import { MockEnvelopeEndpoint } from "../../sandbox/js/envelope_endpoint_mock.mjs";
-import { JPITEM_COMPLETED, JPITEM_QUEUED } from "../../sandbox/js/jpitem_queue_mock.mjs";
-import { MockJPItemQueue } from "../../sandbox/js/jpitem_queue_mock.mjs";
+import { EnvelopeEndpointInMemory as MockEnvelopeEndpoint } from "../../packages/js/envelope_endpoint.mjs";
+import { JPITEM_COMPLETED, JPITEM_QUEUED, JPItemQueueInMemory as MockJPItemQueue } from "../../packages/js/jpitem_queue.mjs";
 import { ResultHandoff } from "../../packages/js/result_handoff.mjs";
 import { StateSync } from "../../packages/js/state_sync.mjs";
 import { TransportLayerMock } from "../../sandbox/js/transport_layer_mock.mjs";

@@ -24,6 +24,13 @@ from jobping.envelope import JOBPING_RESULT, box_result, unbox_result
 JPItemRole = Literal["producer", "consumer"]
 JPItemStatus = Literal["created", "waiting", "queued", "completed", "destroyed"]
 
+# Status constants for tests and external usage
+JPITEM_CREATED = "created"
+JPITEM_WAITING = "waiting"
+JPITEM_QUEUED = "queued"
+JPITEM_COMPLETED = "completed"
+JPITEM_DESTROYED = "destroyed"
+
 
 @dataclass
 class JPItem:

@@ -11,7 +11,7 @@ from jobping.transport_layer import (
     JOBPING_JOB_ID_HEADER,
     TransportLayer,
 )
-from jobping_sandbox.envelope_endpoint_mock import MockEnvelopeEndpoint
+from jobping.envelope_endpoint import EnvelopeEndpointInMemory as MockEnvelopeEndpoint
 from jobping_sandbox.transport_layer_mock import TransportLayerMock
 
 

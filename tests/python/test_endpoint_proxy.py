@@ -5,11 +5,11 @@ import asyncio
 import pytest
 
 from jobping.endpoint_proxy import EndpointProxy
-from jobping_sandbox.envelope_endpoint_mock import MockEnvelopeEndpoint
-from jobping_sandbox.jpitem_queue_mock import (
+from jobping.envelope_endpoint import EnvelopeEndpointInMemory as MockEnvelopeEndpoint
+from jobping.jpitem_queue import (
     JPITEM_COMPLETED,
     JPITEM_QUEUED,
-    MockJPItemQueue,
+    JPItemQueueInMemory as MockJPItemQueue,
 )
 from jobping.result_handoff import ResultHandoff
 from jobping.state_sync import StateSync

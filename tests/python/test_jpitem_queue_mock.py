@@ -4,13 +4,13 @@ import asyncio
 
 import pytest
 
-from jobping_sandbox.envelope_endpoint_mock import MockEnvelopeEndpoint
-from jobping_sandbox.jpitem_queue_mock import (
+from jobping.envelope_endpoint import EnvelopeEndpointInMemory as MockEnvelopeEndpoint
+from jobping.jpitem_queue import (
     JPITEM_COMPLETED,
     JPITEM_CREATED,
     JPITEM_QUEUED,
     JPITEM_WAITING,
-    MockJPItemQueue,
+    JPItemQueueInMemory as MockJPItemQueue,
 )
 
 

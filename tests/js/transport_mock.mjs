@@ -5,7 +5,7 @@ import {
   JOBPING_JOB_ID_HEADER,
   TransportLayer,
 } from "../../packages/js/transport_layer.mjs";
-import { MockEnvelopeEndpoint } from "../../sandbox/js/envelope_endpoint_mock.mjs";
+import { EnvelopeEndpointInMemory as MockEnvelopeEndpoint } from "../../packages/js/envelope_endpoint.mjs";
 import { TransportLayerMock } from "../../sandbox/js/transport_layer_mock.mjs";
 
 const jobId = createJobId();

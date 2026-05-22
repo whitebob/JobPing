@@ -7,8 +7,8 @@
 import { performance } from "node:perf_hooks";
 
 import { createJobPing } from "../../packages/js/jobping.mjs";
-import { MockEnvelopeEndpoint } from "../../sandbox/js/envelope_endpoint_mock.mjs";
-import { MockJPItemQueue } from "../../sandbox/js/jpitem_queue_mock.mjs";
+import { EnvelopeEndpointInMemory } from "../../packages/js/envelope_endpoint.mjs";
+import { JPItemQueueInMemory } from "../../packages/js/jpitem_queue.mjs";
 import { TransportLayerWS } from "../../packages/js/transport_layer_ws.mjs";
 
 const brokerUrl = (() => {
@@ -19,7 +19,7 @@ const brokerUrl = (() => {
 
 const jp = createJobPing({
   transportLayer: new TransportLayerWS({ url: brokerUrl }),
-  queue: new MockJPItemQueue(new MockEnvelopeEndpoint()),
+  queue: new JPItemQueueInMemory(new EnvelopeEndpointInMemory()),
 });
 
 function readOption(name, fallback) {

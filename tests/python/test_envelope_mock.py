@@ -11,7 +11,7 @@ from jobping.envelope import (
     is_result_envelope,
     unbox_result,
 )
-from jobping_sandbox.envelope_endpoint_mock import MockEnvelopeEndpoint
+from jobping.envelope_endpoint import EnvelopeEndpointInMemory as MockEnvelopeEndpoint
 
 
 def test_boxing_and_unboxing_result_envelopes() -> None:
