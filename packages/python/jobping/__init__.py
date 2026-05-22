@@ -4,6 +4,7 @@ from jobping.jobping import JobPing, JobPingClass, create_jobping
 from jobping.state_sync import StateSync
 from jobping.transport_layer import TransportLayer
 from jobping.transport_layer_ws import TransportLayerWS
+from jobping.jpitem_queue import JPItemQueue, JPItemQueueInMemory
 
 __all__ = [
     "EndpointProxy",
@@ -13,5 +14,7 @@ __all__ = [
     "StateSync",
     "TransportLayer",
     "TransportLayerWS",
+    "JPItemQueue",
+    "JPItemQueueInMemory",
     "create_jobping",
 ]
