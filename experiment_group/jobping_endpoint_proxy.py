@@ -11,8 +11,11 @@ from experiment_group.jobping_jpitem_queue_mock import (
     MockJPItem,
     MockJPItemQueue,
 )
-from experiment_group.jobping_result_handoff_mock import MockResultHandoff
-from experiment_group.jobping_state_sync_mock import MockStateSync
+from experiment_group.jobping_result_handoff import ResultHandoff
+from experiment_group.jobping_state_sync import StateSync
+
+
+JOBPING_JOB_REF_KIND = "jobping.job_ref.v1"
 
 
 def _assert_valid_job_id(job_id: str) -> None:
@@ -24,8 +27,8 @@ class EndpointProxy:
     def __init__(
         self,
         *,
-        state_sync: MockStateSync,
-        result_handoff: MockResultHandoff,
+        state_sync: StateSync,
+        result_handoff: ResultHandoff,
         queue: MockJPItemQueue,
         create_job_id: Callable[[], str] = default_create_job_id,
     ) -> None:
@@ -36,6 +39,23 @@ class EndpointProxy:
 
     def create_job_id(self) -> str:
         return self._create_job_id()
+
+    def make_job_ref(self, job_id: str) -> dict[str, str]:
+        _assert_valid_job_id(job_id)
+        return {
+            "jobping": JOBPING_JOB_REF_KIND,
+            "type": "job_ref",
+            "job_id": job_id,
+        }
+
+    def is_job_ref(self, value: Any) -> bool:
+        return (
+            isinstance(value, dict)
+            and value.get("jobping") == JOBPING_JOB_REF_KIND
+            and value.get("type") == "job_ref"
+            and isinstance(value.get("job_id"), str)
+            and len(value["job_id"]) > 0
+        )
 
     def offer(self, job_id: str | None = None) -> MockJPItem:
         return self.queue.offer(job_id or self.create_job_id())

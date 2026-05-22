@@ -5,14 +5,14 @@ import asyncio
 import pytest
 
 from experiment_group.jobping_id import create_job_id
-from experiment_group.jobping_state_sync_mock import MockStateSync
+from experiment_group.jobping_state_sync import StateSync
 from experiment_group.jobping_transport_mock import MockTransportAdapter
 
 
 def test_state_sync_publish_and_wait_for_state_context() -> None:
     async def run() -> None:
         transport = MockTransportAdapter()
-        state_sync = MockStateSync(transport)
+        state_sync = StateSync(transport)
         job_id = create_job_id()
 
         waiting = asyncio.create_task(state_sync.wait_for(job_id, status="running"))
@@ -34,7 +34,7 @@ def test_state_sync_publish_and_wait_for_state_context() -> None:
 
 
 def test_state_sync_validates_job_id_and_status() -> None:
-    state_sync = MockStateSync(MockTransportAdapter())
+    state_sync = StateSync(MockTransportAdapter())
 
     with pytest.raises(ValueError, match="job_id must be a non-empty string"):
         state_sync.publish("", "running")

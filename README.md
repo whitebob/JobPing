@@ -31,12 +31,14 @@ Preferred public vocabulary:
 - `offer(job_id)`: create a producer-side `JPItem`.
 - `accept(job_id)`: create a consumer-side `JPItem` from a peer offer.
 - `defer(job_id | item)`: mark an offered item as deferred work.
-- `fulfill(job_id, payload)`: box and send the result through the envelope layer.
-- `fulfillLater(job_id, task)`: future pseudocode for running producer work later and then fulfilling the item.
+- `makeJobRef(job_id)` / `make_job_ref(job_id)`: create wrapper-facing rendezvous signaling for an offered job.
+- `isJobRef(value)` / `is_job_ref(value)`: detect wrapper-facing job references without treating them as result envelopes.
+- `fulfill(job_id, result)`: box and send the result through the result handoff layer.
+- `fulfillLater(job_id, task)` / `fulfill_later(job_id, task)`: run producer work through the proxy handoff helper and fulfill the item.
 - `awaitResult(job_id)` / `await_result(job_id)`: wait for a result envelope and unbox it.
 - `release(job_id)`: remove endpoint ownership once the item is no longer needed.
 
-`fulfillLater` is intentionally not locked down yet. The current mock records the intended semantics in comments while avoiding premature scheduling API design.
+`fulfillLater` is intentionally still a mock-level helper. It records the intended producer-work-to-result-handoff semantics without locking down the final scheduler API.
 
 ## Semantic services and transport
 
@@ -50,7 +52,7 @@ JobPing separates semantic services from transport mechanisms:
 
 `StateSync` and `ResultHandoff` are peers. They may share one transport implementation, but they do not have to. Status updates are often lightweight and frequent, while result handoff may need stronger reliability, larger payload support, or a different storage/retrieval path.
 
-Current semantic mock operations:
+Current semantic operations:
 
 - `StateSync.publish(job_id, status, state_context)`
 - `StateSync.waitFor/wait_for(job_id, status=...)`
@@ -83,6 +85,8 @@ wrapper -> EndpointProxy -> StateSync / ResultHandoff / JPItemQueue
 Current EndpointProxy operations:
 
 - `createJobId` / `create_job_id`
+- `makeJobRef` / `make_job_ref`
+- `isJobRef` / `is_job_ref`
 - `offer`
 - `accept`
 - `defer`
@@ -169,7 +173,7 @@ mindmap
       defer
         Mark work as deferred
       fulfillLater
-        Future scheduling pseudocode
+        Mock handoff helper
         Runs producer task later
         Must preserve original failures
       fulfill
@@ -234,9 +238,10 @@ mindmap
       Envelope mock
       JPItem queue mock
       Transport adapter mock
-      StateSync mock
-      ResultHandoff mock
+      StateSync over mock transport
+      ResultHandoff over mock transport
       EndpointProxy mock
+      Wrapper integration mocks
       Fallback matrix
       Python pytest
 ```
@@ -254,9 +259,10 @@ This currently runs:
 - envelope mock tests
 - JPItem queue mock tests
 - transport adapter mock tests
-- StateSync mock tests
-- ResultHandoff mock tests
+- StateSync tests over mock transport
+- ResultHandoff tests over mock transport
 - EndpointProxy tests
+- wrapper integration mock tests
 - unload switch tests
 - control/experiment fallback matrix
 - Python pytest tests

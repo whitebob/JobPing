@@ -2,76 +2,83 @@
 
 from __future__ import annotations
 
+import asyncio
 import os
 from collections.abc import Awaitable, Callable
 from functools import wraps
 from typing import Any, TypeVar
 
+from experiment_group.jobping_endpoint_proxy import EndpointProxy
+from experiment_group.jobping_envelope_mock import MockEnvelopeEndpoint
+from experiment_group.jobping_jpitem_queue_mock import MockJPItemQueue
+from experiment_group.jobping_result_handoff import ResultHandoff
+from experiment_group.jobping_state_sync import StateSync
+from experiment_group.jobping_transport_mock import MockTransportAdapter
+
 
 Result = TypeVar("Result")
+JobRef = dict[str, str]
 
 
 def is_jobping_disabled() -> bool:
     return os.environ.get("JOBPING_DISABLED", "").lower() in {"1", "true", "yes", "on"}
 
 
+def create_default_endpoint_proxy() -> EndpointProxy:
+    return EndpointProxy(
+        state_sync=StateSync(MockTransportAdapter()),
+        result_handoff=ResultHandoff(MockTransportAdapter()),
+        queue=MockJPItemQueue(MockEnvelopeEndpoint()),
+    )
+
+
 class JobPingServerMock:
     """Placeholder for the future integrated boxing/ping helper."""
 
+    def __init__(
+        self,
+        *,
+        endpoint_proxy: EndpointProxy | None = None,
+        job_context_provider: Callable[..., str | None] | None = None,
+    ) -> None:
+        self.endpoint_proxy = endpoint_proxy or create_default_endpoint_proxy()
+        self.job_context_provider = job_context_provider or (lambda *args, **kwargs: None)
+
     def wrap(
         self,
-    ) -> Callable[[Callable[..., Awaitable[Result]]], Callable[..., Awaitable[Result]]]:
+    ) -> Callable[
+        [Callable[..., Awaitable[Result]]], Callable[..., Awaitable[Result | JobRef]]
+    ]:
         def decorator(
             wrapped_callable: Callable[..., Awaitable[Result]],
-        ) -> Callable[..., Awaitable[Result]]:
+        ) -> Callable[..., Awaitable[Result | JobRef]]:
             @wraps(wrapped_callable)
-            async def wrapper(*args: Any, **kwargs: Any) -> Result:
+            async def wrapper(*args: Any, **kwargs: Any) -> Result | JobRef:
                 if is_jobping_disabled():
                     return await wrapped_callable(*args, **kwargs)
 
                 print("doing server_proxy.capture_call_input")
                 print("doing server_proxy.inspect_transport_context")
-                # Future flow:
-                # 1. Treat *args and **kwargs as opaque call input.
-                # 2. Ask a transport adapter whether this request carries JobPing
-                #    context. The wrapper itself should not know HTTP headers,
-                #    websocket handshakes, client addresses, or framework details.
-                # 3. If no valid JobPing context exists, call the wrapped callable
-                #    normally and return its opaque output.
-                # 4. If valid JobPing context exists, offer a producer JPItem for
-                #    that job_id and return a boxed job_ref envelope quickly.
-                # 5. Keep running the wrapped callable outside the open request.
-                # 6. Treat the callable return value as opaque call output.
-                # 7. Box that output and notify the waiting peer.
-                #
-                # Pseudocode:
-                # job_id = transport_adapter.extract_job_id(context)
-                #
-                # The transport adapter may read an HTTP header, websocket metadata,
-                # RPC metadata, or another carrier. That choice is intentionally not
-                # a concrete API here because this mock keeps wrapper responsibilities
-                # separate from protocol detection and parameter acquisition.
-                #
-                # if job_id is None:
-                #     output = await wrapped_callable(*args, **kwargs)
-                #     return output
-                #
-                # jp_item = endpoint_queue.offer(job_id)
-                # endpoint_queue.defer(jp_item)
-                # endpoint_proxy.fulfill_later(
-                #     job_id=job_id,
-                #     task=lambda: wrapped_callable(*args, **kwargs),
-                #     on_done=lambda output: endpoint_queue.fulfill(job_id, output),
-                # )
-                # return box_job_ref(job_id)
+                job_id = self.job_context_provider(*args, **kwargs)
+
+                if job_id is not None:
+                    print("doing endpoint_proxy.offer")
+                    jp_item = self.endpoint_proxy.offer(job_id)
+                    print("doing endpoint_proxy.defer")
+                    self.endpoint_proxy.defer(jp_item)
+                    print("doing endpoint_proxy.fulfill_later")
+                    asyncio.create_task(
+                        self.endpoint_proxy.fulfill_later(
+                            job_id,
+                            lambda: wrapped_callable(*args, **kwargs),
+                        ),
+                    )
+                    print("doing server_proxy.return_job_ref_offer")
+                    return self.endpoint_proxy.make_job_ref(job_id)
 
                 print("doing server_proxy.no_jobping_context_call_wrapped_callable")
                 output = await wrapped_callable(*args, **kwargs)
                 print("doing server_proxy.capture_call_output")
-                # With valid JobPing context, these would run in the deferred task:
-                # print("doing endpoint_queue.fulfill")
-                # print("doing envelope_endpoint.send")
-                # print("doing server_proxy.return_job_ref_offer")
                 return output
 
             return wrapper

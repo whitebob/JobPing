@@ -8,7 +8,13 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from experiment_group.jobping_server_mock import is_jobping_disabled, jobping
+from experiment_group.jobping_endpoint_proxy import EndpointProxy
+from experiment_group.jobping_envelope_mock import MockEnvelopeEndpoint
+from experiment_group.jobping_jpitem_queue_mock import MockJPItemQueue
+from experiment_group.jobping_result_handoff import ResultHandoff
+from experiment_group.jobping_server_mock import JobPingServerMock, is_jobping_disabled, jobping
+from experiment_group.jobping_state_sync import StateSync
+from experiment_group.jobping_transport_mock import MockTransportAdapter
 
 
 @pytest.mark.parametrize(
@@ -95,3 +101,40 @@ def test_server_mock_unload_switch_preserves_original_call_path(
     assert is_jobping_disabled()
     assert output == {"value": 7, "status": "OK"}
     assert capsys.readouterr().out == ""
+
+
+def test_server_mock_with_job_context_returns_job_ref_and_fulfills_result() -> None:
+    async def run() -> None:
+        state_sync = StateSync(MockTransportAdapter())
+        result_handoff = ResultHandoff(MockTransportAdapter())
+        producer_proxy = EndpointProxy(
+            state_sync=state_sync,
+            result_handoff=result_handoff,
+            queue=MockJPItemQueue(MockEnvelopeEndpoint()),
+        )
+        consumer_proxy = EndpointProxy(
+            state_sync=state_sync,
+            result_handoff=result_handoff,
+            queue=MockJPItemQueue(MockEnvelopeEndpoint()),
+        )
+        job_id = producer_proxy.create_job_id()
+        server_jobping = JobPingServerMock(
+            endpoint_proxy=producer_proxy,
+            job_context_provider=lambda *args, **kwargs: job_id,
+        )
+
+        async def wrapped_callable(value: int) -> dict[str, int | str]:
+            return {"value": value, "status": "OK"}
+
+        wrapped = server_jobping.wrap()(wrapped_callable)
+        job_ref = await wrapped(7)
+
+        assert producer_proxy.is_job_ref(job_ref)
+        assert job_ref["job_id"] == job_id
+
+        consumer_proxy.accept(job_id)
+        completed = await consumer_proxy.await_result(job_id)
+
+        assert completed.result == {"value": 7, "status": "OK"}
+
+    asyncio.run(run())

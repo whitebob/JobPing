@@ -1,6 +1,8 @@
 import { createJobId as defaultCreateJobId } from "./jobping_id.mjs";
 import { JPITEM_COMPLETED } from "./jobping_jpitem_queue_mock.mjs";
 
+const JOBPING_JOB_REF_KIND = "jobping.job_ref.v1";
+
 function assertValidJobId(jobId) {
   if (typeof jobId !== "string" || jobId.length === 0) {
     throw new Error("job_id must be a non-empty string");
@@ -37,6 +39,26 @@ export class EndpointProxy {
 
   createJobId() {
     return this.createJobIdFn();
+  }
+
+  makeJobRef(jobId) {
+    assertValidJobId(jobId);
+    return {
+      jobping: JOBPING_JOB_REF_KIND,
+      type: "job_ref",
+      job_id: jobId,
+    };
+  }
+
+  isJobRef(value) {
+    return (
+      typeof value === "object" &&
+      value !== null &&
+      value.jobping === JOBPING_JOB_REF_KIND &&
+      value.type === "job_ref" &&
+      typeof value.job_id === "string" &&
+      value.job_id.length > 0
+    );
   }
 
   offer(jobId = this.createJobId()) {
