@@ -81,89 +81,14 @@ def _assert_valid_job_id(job_id: str) -> None:
         raise ValueError("job_id must be a non-empty string")
 
 
-class JPItemQueueInMemory(JPItemQueue):
-    """In-process JPItem queue implementation (JPItemQueueInMemory).
+# Concrete implementations live in the imp subpackage. Import and re-export
+# the in-memory implementation for backward compatibility.
+from importlib import import_module
 
-    Designed to match the behaviour of sandbox MockJPItemQueue so it can be
-    used as a drop-in replacement for examples and most tests.
-    """
-
-    def __init__(self, envelope_endpoint: Any) -> None:
-        # Envelope endpoint must implement send(envelope) and recv(job_id=..., type=..., timeout=...)
-        self.envelope_endpoint = envelope_endpoint
-        self._items: dict[str, JPItem] = {}
-
-    def offer(self, job_id: str) -> JPItem:
-        _assert_valid_job_id(job_id)
-        if job_id in self._items:
-            raise ValueError(f"JPItem already exists: {job_id}")
-
-        item = JPItem(job_id=job_id, role="producer", status="created")
-        self._items[job_id] = item
-        return item
-
-    def defer(self, item_or_job_id: JPItem | str) -> JPItem:
-        item = self._resolve_item(item_or_job_id)
-        if item.role != "producer":
-            raise ValueError("Only offered JPItems can be deferred")
-
-        item.status = "queued"
-        return item
-
-    def fulfill(self, job_id: str, result: Any) -> JPItem:
-        item = self._resolve_item(job_id)
-        if item.role != "producer":
-            raise ValueError("Only offered JPItems can be fulfilled")
-
-        item.status = "completed"
-        item.result = result
-        # send boxed result via envelope endpoint
-        self.envelope_endpoint.send(box_result(job_id, result))
-        return item
-
-    async def await_result(self, job_id: str, *, timeout: float = 1.0) -> JPItem:
-        item = self._resolve_item(job_id)
-        if item.role != "consumer":
-            raise ValueError("Only accepted JPItems can await results")
-
-        item.status = "waiting"
-        envelope = await self.envelope_endpoint.recv(job_id=job_id, type=JOBPING_RESULT, timeout=timeout)
-        item.result = unbox_result(envelope, expected_job_id=job_id)
-        item.status = "completed"
-        return item
-
-    def accept(self, job_id: str) -> JPItem:
-        _assert_valid_job_id(job_id)
-        if job_id in self._items:
-            raise ValueError(f"JPItem already exists: {job_id}")
-
-        item = JPItem(job_id=job_id, role="consumer", status="waiting")
-        self._items[job_id] = item
-        return item
-
-    def release(self, job_id: str) -> JPItem:
-        item = self._resolve_item(job_id)
-        item.status = "destroyed"
-        del self._items[job_id]
-        return item
-
-    def get(self, job_id: str) -> JPItem | None:
-        _assert_valid_job_id(job_id)
-        return self._items.get(job_id)
-
-    def snapshot(self) -> dict[str, Any]:
-        statuses: dict[str, int] = {}
-        for item in self._items.values():
-            statuses[item.status] = statuses.get(item.status, 0) + 1
-
-        return {"items": len(self._items), "statuses": statuses, "envelopes": self.envelope_endpoint.size()}
-
-    def _resolve_item(self, item_or_job_id: JPItem | str) -> JPItem:
-        job_id = item_or_job_id if isinstance(item_or_job_id, str) else item_or_job_id.job_id
-        _assert_valid_job_id(job_id)
-
-        item = self._items.get(job_id)
-        if item is None:
-            raise ValueError(f"Unknown JPItem: {job_id}")
-
-        return item
+try:
+    _imp = import_module("jobping.imp.jpitem_queue_inmemory")
+    JPItemQueueInMemory = getattr(_imp, "JPItemQueueInMemory")
+except Exception:
+    # If the imp module is unavailable, leave the name undefined to surface
+    # import-time errors where the implementation is required.
+    JPItemQueueInMemory = None

@@ -9,7 +9,7 @@ import { performance } from "node:perf_hooks";
 import { createJobPing } from "../../packages/js/jobping.mjs";
 import { EnvelopeEndpointInMemory } from "../../packages/js/envelope_endpoint.mjs";
 import { JPItemQueueInMemory } from "../../packages/js/jpitem_queue.mjs";
-import { TransportLayerWS } from "../../packages/js/transport_layer_ws.mjs";
+import { TransportLayerWS } from "../../packages/js/imp/transport_layer_ws.mjs";
 
 const brokerUrl = (() => {
   const prefix = `--brokerUrl=`;

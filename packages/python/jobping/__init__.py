@@ -3,7 +3,6 @@ from jobping.result_handoff import ResultHandoff
 from jobping.jobping import JobPing, JobPingClass, create_jobping
 from jobping.state_sync import StateSync
 from jobping.transport_layer import TransportLayer
-from jobping.transport_layer_ws import TransportLayerWS
 from jobping.jpitem_queue import JPItemQueue, JPItemQueueInMemory
 from jobping.envelope_endpoint import EnvelopeEndpoint, EnvelopeEndpointInMemory
 
@@ -14,7 +13,6 @@ __all__ = [
     "ResultHandoff",
     "StateSync",
     "TransportLayer",
-    "TransportLayerWS",
     "JPItemQueue",
     "JPItemQueueInMemory",
     "EnvelopeEndpoint",

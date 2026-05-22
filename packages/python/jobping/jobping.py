@@ -12,10 +12,22 @@ from jobping.endpoint_proxy import EndpointProxy
 from jobping.result_handoff import ResultHandoff
 from jobping.state_sync import StateSync
 from jobping.transport_layer import TransportLayer
+from jobping.imp.transport_layer_ws import TransportLayerWS
+from jobping.imp.transport_layer_https import TransportLayerHTTPS
 
 
 Result = TypeVar("Result")
 JobRef = dict[str, str]
+
+
+# Default transport instances are created at module import time so they can
+# reflect environment configuration immediately. This makes the defaults
+# visible to callers without having to construct transports inside
+# create_jobping every time.
+_ws_url = os.environ.get("JOBPING_WS_URL", "http://127.0.0.1:8890")
+_http_base = os.environ.get("JOBPING_HTTP_BASE", _ws_url)
+DEFAULT_STATUS_TRANSPORT: TransportLayer = TransportLayerWS(_ws_url)
+DEFAULT_RESULT_TRANSPORT: TransportLayer = TransportLayerHTTPS(_http_base)
 
 
 def is_jobping_disabled() -> bool:
@@ -78,15 +90,25 @@ JobPingClass = JobPing
 
 def create_jobping(
     *,
-    transport_layer: TransportLayer,
+    status_transport_layer: TransportLayer = DEFAULT_STATUS_TRANSPORT,
+    result_transport_layer: TransportLayer = DEFAULT_RESULT_TRANSPORT,
     queue: Any,
-    result_transport_layer: TransportLayer | None = None,
     job_context_provider: Callable[..., str | None] | None = None,
 ) -> JobPing:
-    result_transport = result_transport_layer or transport_layer
+    """Create a JobPing instance.
+
+    Parameters:
+    - status_transport_layer: used for StateSync (defaults to a TransportLayerWS
+      pointed at JOBPING_WS_URL).
+    - result_transport_layer: used for ResultHandoff (defaults to a
+      TransportLayerHTTPS pointed at JOBPING_HTTP_BASE).
+    - queue: JPItem queue implementation (required).
+    - job_context_provider: optional callable to extract job_id from call args.
+    """
+
     endpoint_proxy = EndpointProxy(
-        state_sync=StateSync(transport_layer),
-        result_handoff=ResultHandoff(result_transport),
+        state_sync=StateSync(status_transport_layer),
+        result_handoff=ResultHandoff(result_transport_layer),
         queue=queue,
     )
     return JobPing(

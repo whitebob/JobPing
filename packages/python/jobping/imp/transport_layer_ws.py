@@ -1,10 +1,7 @@
-"""WebSocket TransportLayer using python-socketio.
+"""WebSocket TransportLayer using python-socketio (implementation under imp).
 
-This is a lightweight adapter implementing the TransportLayer interface
-backed by a Socket.IO websocket connection (python-socketio AsyncClient).
-
-Note: importing python-socketio is optional; a helpful error is raised
-if the package is not installed.
+This module mirrors the TransportLayerWS implementation but lives under
+jobping.imp to separate concrete implementations from public ABCs.
 """
 from __future__ import annotations
 
