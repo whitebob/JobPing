@@ -1,5 +1,9 @@
 // Client-side JobPing SDK facade.
 
+import { EndpointProxy } from "./endpoint_proxy.mjs";
+import { ResultHandoff } from "./result_handoff.mjs";
+import { StateSync } from "./state_sync.mjs";
+
 export function isJobPingDisabled() {
   if (globalThis.__JOBPING_DISABLED__ === true) {
     return true;
@@ -47,3 +51,25 @@ export class JobPing {
 }
 
 export const JobPingClientMock = JobPing;
+export const JobPingClass = JobPing;
+
+export function createJobPing({
+  transportLayer,
+  queue,
+  resultTransportLayer = transportLayer,
+}) {
+  if (!transportLayer) {
+    throw new Error("createJobPing requires a transportLayer");
+  }
+  if (!queue) {
+    throw new Error("createJobPing requires a queue");
+  }
+
+  return new JobPing({
+    endpointProxy: new EndpointProxy({
+      stateSync: new StateSync({ transportLayer }),
+      resultHandoff: new ResultHandoff({ transportLayer: resultTransportLayer }),
+      queue,
+    }),
+  });
+}

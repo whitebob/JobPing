@@ -6,11 +6,14 @@
 
 import { performance } from "node:perf_hooks";
 
-import { JobPing } from "../../packages/js/jobping.mjs";
-import { createMockEndpointProxy } from "../../sandbox/js/create_mock_endpoint_proxy.mjs";
+import { createJobPing } from "../../packages/js/jobping.mjs";
+import { MockEnvelopeEndpoint } from "../../sandbox/js/envelope_endpoint_mock.mjs";
+import { MockJPItemQueue } from "../../sandbox/js/jpitem_queue_mock.mjs";
+import { TransportLayerMock } from "../../sandbox/js/transport_layer_mock.mjs";
 
-const jobping = new JobPing({
-  endpointProxy: createMockEndpointProxy(),
+const jp = createJobPing({
+  transportLayer: new TransportLayerMock(),
+  queue: new MockJPItemQueue(new MockEnvelopeEndpoint()),
 });
 
 function readOption(name, fallback) {
@@ -46,7 +49,7 @@ async function fetchJson(url, options) {
   return response.json();
 }
 
-const runOneRequest = jobping.wrap(async function runOneRequest(requestId) {
+const runOneRequest = jp.wrap(async function runOneRequest(requestId) {
   const params = new URLSearchParams({
     request_id: String(requestId),
     sleep_seconds: String(sleepSeconds),

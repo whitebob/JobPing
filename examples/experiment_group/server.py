@@ -13,10 +13,13 @@ from time import perf_counter
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
-from jobping.jobping import JobPing
-from jobping_sandbox import create_mock_endpoint_proxy
+from jobping import create_jobping
+from jobping_sandbox import MockEnvelopeEndpoint, MockJPItemQueue, TransportLayerMock
 
-jobping = JobPing(endpoint_proxy=create_mock_endpoint_proxy())
+jp = create_jobping(
+    transport_layer=TransportLayerMock(),
+    queue=MockJPItemQueue(MockEnvelopeEndpoint()),
+)
 
 
 app = FastAPI(title="JobPing experiment group")
@@ -84,7 +87,7 @@ async def count_active_requests(request: Request, call_next):
 
 
 @app.get("/work")
-@jobping.wrap()
+@jp.wrap()
 async def do_work(request_id: int, sleep_seconds: float = 1.0) -> dict[str, float | int | str]:
     """Simulate a remote task that keeps the HTTP request open while waiting."""
 

@@ -9,6 +9,9 @@ from functools import wraps
 from typing import Any, TypeVar
 
 from jobping.endpoint_proxy import EndpointProxy
+from jobping.result_handoff import ResultHandoff
+from jobping.state_sync import StateSync
+from jobping.transport_layer import TransportLayer
 
 
 Result = TypeVar("Result")
@@ -70,4 +73,26 @@ class JobPing:
 
         return decorator
 
-JobPingServerMock = JobPing
+JobPingClass = JobPing
+
+
+def create_jobping(
+    *,
+    transport_layer: TransportLayer,
+    queue: Any,
+    result_transport_layer: TransportLayer | None = None,
+    job_context_provider: Callable[..., str | None] | None = None,
+) -> JobPing:
+    result_transport = result_transport_layer or transport_layer
+    endpoint_proxy = EndpointProxy(
+        state_sync=StateSync(transport_layer),
+        result_handoff=ResultHandoff(result_transport),
+        queue=queue,
+    )
+    return JobPing(
+        endpoint_proxy=endpoint_proxy,
+        job_context_provider=job_context_provider,
+    )
+
+
+JobPingServerMock = JobPingClass
