@@ -88,8 +88,14 @@ async def count_active_requests(request: Request, call_next):
 
 @app.get("/work")
 @jp.wrap()
-async def do_work(request_id: int, sleep_seconds: float = 1.0) -> dict[str, float | int | str]:
-    """Simulate a remote task that keeps the HTTP request open while waiting."""
+async def do_work(request: Request, request_id: int, sleep_seconds: float = 1.0) -> dict[str, float | int | str]:
+    """Simulate a remote task that keeps the HTTP request open while waiting.
+
+    NOTE: Added the `request` parameter so the default job_context_provider can
+    inspect request.headers and discover an attached job_id when the client
+    sets the x-jobping-job-id header. This is only necessary for the example
+    server to demonstrate deferred flow in the experiment.
+    """
 
     started_at = perf_counter()
     await asyncio.sleep(sleep_seconds)

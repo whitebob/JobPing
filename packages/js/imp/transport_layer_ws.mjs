@@ -2,7 +2,7 @@
 // Implements a thin TransportLayer over Socket.IO. This is intentionally
 // small and relies on the host application to run the Socket.IO server.
 
-import { TransportLayer, JOBPING_JOB_ID_HEADER } from "../js/transport_layer.mjs";
+import { TransportLayer, JOBPING_JOB_ID_HEADER } from "../transport_layer.mjs";
 
 let io;
 try {

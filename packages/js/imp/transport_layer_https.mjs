@@ -7,7 +7,7 @@
 //  - POST {baseUrl}/message
 //  - GET  {baseUrl}/message?kind=...&jobId=...
 
-import { TransportLayer, JOBPING_JOB_ID_HEADER } from "../js/transport_layer.mjs";
+import { TransportLayer, JOBPING_JOB_ID_HEADER } from "../transport_layer.mjs";
 
 export class TransportLayerHTTPS extends TransportLayer {
   constructor({ baseUrl } = {}) {

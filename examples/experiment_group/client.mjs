@@ -61,7 +61,8 @@ const runOneRequest = jp.wrap(async function runOneRequest(requestId) {
     sleep_seconds: String(sleepSeconds),
   });
 
-  return fetchJson(`${serverUrl}/work?${params.toString()}`);
+  const jobId = (typeof crypto?.randomUUID === 'function') ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2,9)}`;
+  return fetchJson(`${serverUrl}/work?${params.toString()}`, { method: 'GET', headers: { 'x-jobping-job-id': jobId } });
 });
 
 async function main() {

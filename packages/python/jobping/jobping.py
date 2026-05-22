@@ -48,6 +48,62 @@ def is_jobping_disabled() -> bool:
     return os.environ.get("JOBPING_DISABLED", "").lower() in {"1", "true", "yes", "on"}
 
 
+def _default_job_context_provider_from_transport(transport: TransportLayer):
+    """Return a job_context_provider that tries to extract a job_id from common
+    request-like objects using the provided transport's extract_job_id API.
+
+    The provider inspects the first positional argument or a 'request' kwarg and
+    attempts to build a carrier mapping with 'headers' to pass to
+    transport.extract_job_id(). This is best-effort and intentionally
+    framework-agnostic (FastAPI/Starlette/Aiohttp/WSGI-compatible where
+    possible).
+    """
+
+    def provider(*args, **kwargs):
+        candidate = kwargs.get("request") if "request" in kwargs else (args[0] if args else None)
+        if candidate is None:
+            return None
+
+        headers = None
+        # FastAPI / Starlette / aiohttp Request-like: have .headers mapping
+        try:
+            hdrs = getattr(candidate, "headers", None)
+            if hdrs is not None:
+                # dict() works on starlette.datastructures.Headers and other mappings
+                headers = dict(hdrs)
+        except Exception:
+            headers = None
+
+        # ASGI scope: bytes header pairs in scope['headers']
+        if headers is None:
+            try:
+                scope = getattr(candidate, "scope", None)
+                if isinstance(scope, dict) and "headers" in scope:
+                    raw = scope["headers"]
+                    headers = {k.decode(): v.decode() for k, v in raw}
+            except Exception:
+                headers = None
+
+        # WSGI environ style: HTTP_-prefixed keys
+        if headers is None and isinstance(candidate, dict):
+            try:
+                # collect HTTP_* keys
+                headers = {k[5:].replace("_", "-").lower(): v for k, v in candidate.items() if k.startswith("HTTP_")}
+            except Exception:
+                headers = None
+
+        if headers is None:
+            return None
+
+        carrier = {"headers": headers}
+        try:
+            return transport.extract_job_id(carrier)
+        except Exception:
+            return None
+
+    return provider
+
+
 class JobPing:
     def __init__(
         self,
@@ -119,6 +175,13 @@ def create_jobping(
     - queue: JPItem queue implementation (required).
     - job_context_provider: optional callable to extract job_id from call args.
     """
+
+    # If no job_context_provider is given, use a default tied to the
+    # status_transport_layer to attempt extracting job_id from incoming
+    # request-like objects (headers/scope). This aligns job context
+    # detection with the StatusSync transport.
+    if job_context_provider is None:
+        job_context_provider = _default_job_context_provider_from_transport(status_transport_layer)
 
     endpoint_proxy = EndpointProxy(
         state_sync=StateSync(status_transport_layer),
