@@ -2,8 +2,9 @@
 
 This TransportLayer uses HTTP endpoints to POST envelopes/messages and
 poll for new envelopes/messages. The implementation is intentionally
-lightweight and uses aiohttp as an optional dependency; a helpful error
-is raised if aiohttp is missing when methods are used.
+lightweight and uses httpx as an optional dependency to avoid C build
+requirements; a helpful error is raised if httpx is missing when
+methods are used.
 
 Endpoints (convention):
 - POST {base_url}/envelope  -> accepts envelope JSON
@@ -38,10 +39,10 @@ class TransportLayerHTTPS(TransportLayer):
     def _ensure_session(self):
         if self._session is None:
             try:
-                import aiohttp
+                import httpx
             except Exception as exc:  # pragma: no cover - optional dependency
-                raise RuntimeError("aiohttp is required for TransportLayerHTTPS") from exc
-            self._session = aiohttp.ClientSession(**self._session_kwargs)
+                raise RuntimeError("httpx is required for TransportLayerHTTPS") from exc
+            self._session = httpx.AsyncClient(**self._session_kwargs)
         return self._session
 
     def attach_job_id(self, carrier: TransportCarrier | None, job_id: str) -> TransportCarrier:
@@ -96,14 +97,14 @@ class TransportLayerHTTPS(TransportLayer):
             while True:
                 if asyncio.get_event_loop().time() > deadline:
                     raise asyncio.TimeoutError()
-                async with session.get(url, params=params) as resp:
-                    if resp.status == 200:
-                        data = await resp.json()
-                        # try to construct JobPingEnvelope if possible
-                        try:
-                            return JobPingEnvelope(**data)  # type: ignore
-                        except Exception:
-                            return data  # type: ignore
+                resp = await session.get(url, params=params)
+                if resp.status_code == 200:
+                    # httpx Response.json() is synchronous
+                    data = resp.json()
+                    try:
+                        return JobPingEnvelope(**data)  # type: ignore
+                    except Exception:
+                        return data  # type: ignore
                 await asyncio.sleep(0.1)
         except asyncio.TimeoutError as exc:
             raise TimeoutError("Timed out waiting for envelope") from exc
@@ -130,10 +131,10 @@ class TransportLayerHTTPS(TransportLayer):
             while True:
                 if asyncio.get_event_loop().time() > deadline:
                     raise asyncio.TimeoutError()
-                async with session.get(url, params=params) as resp:
-                    if resp.status == 200:
-                        data = await resp.json()
-                        return data  # type: ignore
+                resp = await session.get(url, params=params)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    return data  # type: ignore
                 await asyncio.sleep(0.1)
         except asyncio.TimeoutError as exc:
             raise TimeoutError("Timed out waiting for transport message") from exc
