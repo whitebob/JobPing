@@ -8,12 +8,12 @@ const SLEEP_SECONDS = 0.05;
 const servers = [
   {
     name: "server without JP",
-    module: "control_group.server:app",
+    module: "examples.control_group.server:app",
     port: 8891,
   },
   {
     name: "server with JP mock",
-    module: "experiment_group.server:app",
+    module: "examples.experiment_group.server:app",
     port: 8892,
   },
 ];
@@ -21,11 +21,11 @@ const servers = [
 const clients = [
   {
     name: "client without JP",
-    script: "control_group/client.mjs",
+    script: "examples/control_group/client.mjs",
   },
   {
     name: "client with JP mock",
-    script: "experiment_group/client.mjs",
+    script: "examples/experiment_group/client.mjs",
   },
 ];
 

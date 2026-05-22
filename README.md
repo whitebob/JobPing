@@ -4,6 +4,14 @@ JobPing is a small endpoint rendezvous bridge for `JPItem` state synchronization
 
 The core goal is narrow: move necessary waiting away from a remote application connection and onto a local endpoint wait point, while preserving the wrapped service's original input, output, and failure semantics.
 
+## Examples layout
+
+The current runnable control group, evolving JobPing example implementation, and their regression tests live under `examples/`:
+
+- `examples/control_group/`: baseline FastAPI + JavaScript client behavior without JobPing.
+- `examples/experiment_group/`: the current expected JobPing shape, including `JobPing`, `EndpointProxy`, `StateSync`, `ResultHandoff`, and `TransportLayer`.
+- `examples/tests/`: tests for both examples and the current semantic-layer contracts.
+
 ## Current design lens
 
 The important symmetry is not `server` versus `client`. Those are deployment roles. The protocol role that matters is whether an endpoint is producing a value later or waiting for a peer to produce it.

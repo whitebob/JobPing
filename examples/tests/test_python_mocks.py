@@ -8,20 +8,20 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from experiment_group.jobping_endpoint_proxy import EndpointProxy
-from experiment_group.jobping_envelope_mock import MockEnvelopeEndpoint
-from experiment_group.jobping_jpitem_queue_mock import MockJPItemQueue
-from experiment_group.jobping_result_handoff import ResultHandoff
-from experiment_group.jobping_server_mock import JobPing, is_jobping_disabled, jobping
-from experiment_group.jobping_state_sync import StateSync
-from experiment_group.jobping_transport_layer import TransportLayerMock
+from examples.experiment_group.jobping_endpoint_proxy import EndpointProxy
+from examples.experiment_group.jobping_envelope_mock import MockEnvelopeEndpoint
+from examples.experiment_group.jobping_jpitem_queue_mock import MockJPItemQueue
+from examples.experiment_group.jobping_result_handoff import ResultHandoff
+from examples.experiment_group.jobping_server_mock import JobPing, is_jobping_disabled, jobping
+from examples.experiment_group.jobping_state_sync import StateSync
+from examples.experiment_group.jobping_transport_layer import TransportLayerMock
 
 
 @pytest.mark.parametrize(
     ("module_name", "server_label"),
     [
-        ("control_group.server", "server without JP"),
-        ("experiment_group.server", "server with JP mock"),
+        ("examples.control_group.server", "server without JP"),
+        ("examples.experiment_group.server", "server with JP mock"),
     ],
 )
 def test_work_response_shape_and_request_counter_cleanup(

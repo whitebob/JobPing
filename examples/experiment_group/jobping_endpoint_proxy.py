@@ -5,14 +5,14 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 from typing import Any
 
-from experiment_group.jobping_id import create_job_id as default_create_job_id
-from experiment_group.jobping_jpitem_queue_mock import (
+from examples.experiment_group.jobping_id import create_job_id as default_create_job_id
+from examples.experiment_group.jobping_jpitem_queue_mock import (
     JPITEM_COMPLETED,
     MockJPItem,
     MockJPItemQueue,
 )
-from experiment_group.jobping_result_handoff import ResultHandoff
-from experiment_group.jobping_state_sync import StateSync
+from examples.experiment_group.jobping_result_handoff import ResultHandoff
+from examples.experiment_group.jobping_state_sync import StateSync
 
 
 JOBPING_JOB_REF_KIND = "jobping.job_ref.v1"

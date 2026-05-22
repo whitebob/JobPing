@@ -4,7 +4,7 @@ import asyncio
 
 import pytest
 
-from experiment_group.jobping_envelope_mock import (
+from examples.experiment_group.jobping_envelope_mock import (
     JOBPING_JOB_REF,
     JOBPING_RESULT,
     MockEnvelopeEndpoint,

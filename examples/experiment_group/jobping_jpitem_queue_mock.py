@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Literal
 
-from experiment_group.jobping_envelope_mock import (
+from examples.experiment_group.jobping_envelope_mock import (
     JOBPING_RESULT,
     MockEnvelopeEndpoint,
     box_result,

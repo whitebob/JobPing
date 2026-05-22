@@ -5,9 +5,9 @@ from uuid import UUID
 
 import pytest
 
-from experiment_group.jobping_envelope_mock import JOBPING_RESULT, MockEnvelopeEndpoint, box_result
-from experiment_group.jobping_id import create_job_id
-from experiment_group.jobping_transport_layer import (
+from examples.experiment_group.jobping_envelope_mock import JOBPING_RESULT, MockEnvelopeEndpoint, box_result
+from examples.experiment_group.jobping_id import create_job_id
+from examples.experiment_group.jobping_transport_layer import (
     JOBPING_JOB_ID_HEADER,
     TransportLayer,
     TransportLayerMock,

@@ -13,7 +13,7 @@ from time import perf_counter
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
-from experiment_group.jobping_server_mock import jobping
+from examples.experiment_group.jobping_server_mock import jobping
 
 
 app = FastAPI(title="JobPing experiment group")

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import Any, Protocol
 
-from experiment_group.jobping_envelope_mock import box_result, unbox_result
-from experiment_group.jobping_transport_layer import TransportMessage
+from examples.experiment_group.jobping_envelope_mock import box_result, unbox_result
+from examples.experiment_group.jobping_transport_layer import TransportMessage
 
 
 JOBPING_RESULT_HANDOFF = "jobping.result_handoff.v1"

@@ -1,6 +1,6 @@
 """Compatibility exports for code that still imports the old mock module."""
 
-from experiment_group.jobping_transport_layer import (
+from examples.experiment_group.jobping_transport_layer import (
     JOBPING_JOB_ID_HEADER,
     MockCarrier,
     TransportCarrier,

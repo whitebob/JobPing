@@ -8,12 +8,12 @@ from collections.abc import Awaitable, Callable
 from functools import wraps
 from typing import Any, TypeVar
 
-from experiment_group.jobping_endpoint_proxy import EndpointProxy
-from experiment_group.jobping_envelope_mock import MockEnvelopeEndpoint
-from experiment_group.jobping_jpitem_queue_mock import MockJPItemQueue
-from experiment_group.jobping_result_handoff import ResultHandoff
-from experiment_group.jobping_state_sync import StateSync
-from experiment_group.jobping_transport_layer import TransportLayerMock
+from examples.experiment_group.jobping_endpoint_proxy import EndpointProxy
+from examples.experiment_group.jobping_envelope_mock import MockEnvelopeEndpoint
+from examples.experiment_group.jobping_jpitem_queue_mock import MockJPItemQueue
+from examples.experiment_group.jobping_result_handoff import ResultHandoff
+from examples.experiment_group.jobping_state_sync import StateSync
+from examples.experiment_group.jobping_transport_layer import TransportLayerMock
 
 
 Result = TypeVar("Result")

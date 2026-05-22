@@ -4,8 +4,8 @@ import asyncio
 
 import pytest
 
-from experiment_group.jobping_envelope_mock import MockEnvelopeEndpoint
-from experiment_group.jobping_jpitem_queue_mock import (
+from examples.experiment_group.jobping_envelope_mock import MockEnvelopeEndpoint
+from examples.experiment_group.jobping_jpitem_queue_mock import (
     JPITEM_COMPLETED,
     JPITEM_CREATED,
     JPITEM_QUEUED,

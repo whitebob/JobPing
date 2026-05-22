@@ -4,9 +4,9 @@ import asyncio
 
 import pytest
 
-from experiment_group.jobping_id import create_job_id
-from experiment_group.jobping_state_sync import StateSync
-from experiment_group.jobping_transport_layer import TransportLayerMock
+from examples.experiment_group.jobping_id import create_job_id
+from examples.experiment_group.jobping_state_sync import StateSync
+from examples.experiment_group.jobping_transport_layer import TransportLayerMock
 
 
 def test_state_sync_publish_and_wait_for_state_context() -> None:

@@ -7,7 +7,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, Literal, NotRequired, TypedDict
 
-from experiment_group.jobping_envelope_mock import (
+from examples.experiment_group.jobping_envelope_mock import (
     EnvelopeType,
     JobPingEnvelope,
     MockEnvelopeEndpoint,

@@ -4,16 +4,16 @@ import asyncio
 
 import pytest
 
-from experiment_group.jobping_endpoint_proxy import EndpointProxy
-from experiment_group.jobping_envelope_mock import MockEnvelopeEndpoint
-from experiment_group.jobping_jpitem_queue_mock import (
+from examples.experiment_group.jobping_endpoint_proxy import EndpointProxy
+from examples.experiment_group.jobping_envelope_mock import MockEnvelopeEndpoint
+from examples.experiment_group.jobping_jpitem_queue_mock import (
     JPITEM_COMPLETED,
     JPITEM_QUEUED,
     MockJPItemQueue,
 )
-from experiment_group.jobping_result_handoff import ResultHandoff
-from experiment_group.jobping_state_sync import StateSync
-from experiment_group.jobping_transport_layer import TransportLayerMock
+from examples.experiment_group.jobping_result_handoff import ResultHandoff
+from examples.experiment_group.jobping_state_sync import StateSync
+from examples.experiment_group.jobping_transport_layer import TransportLayerMock
 
 
 def test_endpoint_proxy_composes_state_sync_result_handoff_and_queue() -> None:
