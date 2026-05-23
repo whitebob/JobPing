@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JobPing Browser Client</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 800px; margin: 2rem auto; padding: 0 1rem; }
+  label { display: block; margin-top: 0.75rem; font-weight: 600; }
+  input, button { font-size: 1rem; padding: 0.4rem 0.6rem; margin-top: 0.25rem; }
+  button { cursor: pointer; margin-top: 1rem; padding: 0.5rem 1.2rem; }
+  #results { margin-top: 1.5rem; white-space: pre-wrap; background: #f5f5f5; padding: 1rem; border-radius: 4px; font-family: monospace; }
+  .error { color: #c00; }
+</style>
+</head>
+<body>
+
+<h1>JobPing Browser Client</h1>
+
+<p>
+  This page uses <code>jp.wrap(fetch)</code> to call the experiment server.
+  When the server returns a <code>job_ref</code>, the client automatically
+  accepts it, awaits the result via WebSocket, and unboxes it — the calling
+  code only sees the final result.
+</p>
+
+<label for="serverUrl">Server URL</label>
+<input id="serverUrl" value="http://127.0.0.1:8887">
+
+<label for="brokerUrl">Broker URL (WebSocket)</label>
+<input id="brokerUrl" value="http://127.0.0.1:8890">
+
+<label for="count">Concurrent requests</label>
+<input id="count" type="number" value="10" min="1" max="500">
+
+<label for="sleep">Sleep seconds per request</label>
+<input id="sleep" type="number" value="5" min="0" max="60">
+
+<button id="run">Run</button>
+<button id="reset">Reset counters</button>
+
+<div id="results">Ready.</div>
+
+<script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
+<script type="module">
+import { createJobPing, JPItemQueueInMemory, EnvelopeEndpointInMemory, TransportLayerWS } from "./jobping_browser.mjs";
+
+const resultsEl = document.getElementById("results");
+
+function log(msg) {
+  resultsEl.textContent = msg;
+}
+
+document.getElementById("run").addEventListener("click", async () => {
+  const serverUrl = document.getElementById("serverUrl").value.replace(/\/+$/, "");
+  const brokerUrl = document.getElementById("brokerUrl").value.replace(/\/+$/, "");
+  const count = Number(document.getElementById("count").value);
+  const sleepSeconds = Number(document.getElementById("sleep").value);
+
+  if (!Number.isInteger(count) || count <= 0) {
+    log("Invalid count");
+    return;
+  }
+
+  const transport = new TransportLayerWS({ url: brokerUrl });
+  const jp = createJobPing({
+    transportLayer: transport,
+    queue: new JPItemQueueInMemory(new EnvelopeEndpointInMemory()),
+  });
+
+  // Reset server counters
+  try {
+    await fetch(`${serverUrl}/reset`, { method: "POST" });
+  } catch (e) {
+    // ignore
+  }
+
+  const startedAt = performance.now();
+
+  // Wrap a single fetch call with jp.wrap — JobPing transparently handles
+  // job_ref detection, acceptance, awaitResult, and release.
+  const runOne = jp.wrap(async (requestId) => {
+    const params = new URLSearchParams({
+      request_id: String(requestId),
+      sleep_seconds: String(sleepSeconds),
+    });
+    const jobId = crypto.randomUUID();
+    const resp = await fetch(`${serverUrl}/work?${params}`, {
+      headers: { "x-jobping-job-id": jobId },
+    });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    return resp.json();
+  });
+
+  log(`Running ${count} concurrent requests with ${sleepSeconds}s sleep...`);
+
+  try {
+    const promises = [];
+    for (let i = 0; i < count; i++) {
+      promises.push(runOne(i));
+    }
+    const results = await Promise.all(promises);
+    const elapsed = ((performance.now() - startedAt) / 1000).toFixed(2);
+
+    let metrics;
+    try {
+      metrics = await fetch(`${serverUrl}/metrics`).then(r => r.json());
+    } catch (e) {
+      metrics = { error: String(e) };
+    }
+
+    log(
+      `Done.\n\n` +
+      `Requests:     ${results.length}/${count} succeeded\n` +
+      `Sleep:        ${sleepSeconds}s per request\n` +
+      `Elapsed:      ${elapsed}s\n` +
+      `Server peak:  ${metrics.max_active_requests} concurrent handlers\n` +
+      `Completed:    ${metrics.completed_requests}\n\n` +
+      `Server response sample:\n${JSON.stringify(results[0], null, 2)}`
+    );
+  } catch (e) {
+    log(`Error: ${e.message || e}`);
+  } finally {
+    transport.socket.disconnect();
+  }
+});
+
+document.getElementById("reset").addEventListener("click", async () => {
+  const serverUrl = document.getElementById("serverUrl").value.replace(/\/+$/, "");
+  try {
+    await fetch(`${serverUrl}/reset`, { method: "POST" });
+    log("Counters reset.");
+  } catch (e) {
+    log(`Reset failed: ${e.message}`);
+  }
+});
+</script>
+</body>
+</html>

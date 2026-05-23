@@ -12,6 +12,7 @@ from time import perf_counter
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse, FileResponse
 
 from jobping import create_jobping, EnvelopeEndpointInMemory, JPItemQueueInMemory
 from jobping.imp.transport_layer_ws import TransportLayerWS
@@ -127,3 +128,16 @@ async def reset_metrics() -> dict[str, str]:
 
     await counter.reset()
     return {"status": "reset"}
+
+
+@app.get("/", response_class=HTMLResponse)
+async def index() -> str:
+    import pathlib
+    html = pathlib.Path(__file__).with_name("client.html").read_text()
+    return html
+
+
+@app.get("/jobping_browser.mjs")
+async def jobping_bundle() -> FileResponse:
+    import pathlib
+    return FileResponse(pathlib.Path(__file__).with_name("jobping_browser.mjs"))
