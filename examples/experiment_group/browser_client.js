@@ -1,4 +1,4 @@
-import { createJobPing, JPItemQueueInMemory, EnvelopeEndpointInMemory, TransportLayerWS } from "./jobping_browser.mjs";
+import * as jp from "./jobping_browser.mjs";
 
 const serverUrlInput = document.getElementById("serverUrl");
 const brokerUrlInput = document.getElementById("brokerUrl");
@@ -37,18 +37,18 @@ async function runExperiment() {
     throw new Error("Sleep seconds must be a non-negative number.");
   }
 
-  const statusTransport = new TransportLayerWS({ url: brokerUrl });
-  const jp = createJobPing({
+  const statusTransport = new jp.TransportLayerWS({ url: brokerUrl });
+  const jobping = jp.createJobPing({
     transportLayer: statusTransport,
     resultTransportLayer: statusTransport,
-    queue: new JPItemQueueInMemory(new EnvelopeEndpointInMemory()),
+    queue: new jp.JPItemQueueInMemory(new jp.EnvelopeEndpointInMemory()),
   });
 
   await fetchJson(`${serverUrl}/reset`, { method: "POST" });
 
   const startedAt = performance.now();
 
-  const runOne = jp.wrap(async (requestId) => {
+  const runOne = jobping.wrap(async (requestId) => {
     const params = new URLSearchParams({
       request_id: String(requestId),
       sleep_seconds: String(sleepSeconds),

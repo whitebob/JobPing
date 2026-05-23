@@ -1,13 +1,7 @@
 import http from 'node:http';
 import { URL } from 'node:url';
 
-import { EndpointProxy } from '../../packages/js/endpoint_proxy.mjs';
-import { StateSync } from '../../packages/js/state_sync.mjs';
-import { ResultHandoff } from '../../packages/js/result_handoff.mjs';
-import { JPItemQueueInMemory } from '../../packages/js/jpitem_queue.mjs';
-import { EnvelopeEndpointInMemory } from '../../packages/js/envelope_endpoint.mjs';
-import { TransportLayerWS } from '../../packages/js/imp/transport_layer_ws.mjs';
-import { JOBPING_JOB_ID_HEADER } from '../../packages/js/transport_layer.mjs';
+import * as jp from '../../packages/js/index.mjs';
 
 class RequestCounter {
   constructor() {
@@ -47,16 +41,16 @@ function sleep(ms) {
 const BROKER_URL = process.env.BROKER_URL || 'http://127.0.0.1:8890';
 let transport;
 try {
-  transport = new TransportLayerWS({ url: BROKER_URL });
+  transport = new jp.TransportLayerWS({ url: BROKER_URL });
 } catch (e) {
-  console.error('Failed to create TransportLayerWS, is socket.io-client installed?', e);
+  console.error('Failed to create jp.TransportLayerWS, is socket.io-client installed?', e);
   process.exit(1);
 }
 
-const endpointProxy = new EndpointProxy({
-  stateSync: new StateSync({ transportLayer: transport }),
-  resultHandoff: new ResultHandoff({ transportLayer: transport }),
-  queue: new JPItemQueueInMemory(new EnvelopeEndpointInMemory()),
+const endpointProxy = new jp.EndpointProxy({
+  stateSync: new jp.StateSync({ transportLayer: transport }),
+  resultHandoff: new jp.ResultHandoff({ transportLayer: transport }),
+  queue: new jp.JPItemQueueInMemory(new jp.EnvelopeEndpointInMemory()),
 });
 
 function setCors(res) {
@@ -81,7 +75,7 @@ const server = http.createServer(async (req, res) => {
       const sleep_seconds = Number(url.searchParams.get('sleep_seconds')) || 1;
 
       // detect jobping header
-      const jobHeader = req.headers[JOBPING_JOB_ID_HEADER] || req.headers[JOBPING_JOB_ID_HEADER.toLowerCase()];
+      const jobHeader = req.headers[jp.JOBPING_JOB_ID_HEADER] || req.headers[jp.JOBPING_JOB_ID_HEADER.toLowerCase()];
       if (jobHeader) {
         const jobId = String(jobHeader);
         // Offer, defer and fulfill later

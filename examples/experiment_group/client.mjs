@@ -6,10 +6,7 @@
 
 import { performance } from "node:perf_hooks";
 
-import { createJobPing } from "../../packages/js/jobping.mjs";
-import { EnvelopeEndpointInMemory } from "../../packages/js/envelope_endpoint.mjs";
-import { JPItemQueueInMemory } from "../../packages/js/jpitem_queue.mjs";
-import { TransportLayerWS } from "../../packages/js/imp/transport_layer_ws.mjs";
+import * as jp from "../../packages/js/index.mjs";
 
 const brokerUrl = (() => {
   const prefix = `--brokerUrl=`;
@@ -17,11 +14,11 @@ const brokerUrl = (() => {
   return value ? value.slice(prefix.length) : "http://127.0.0.1:8890";
 })();
 
-const statusTransport = new TransportLayerWS({ url: brokerUrl });
-const jp = createJobPing({
+const statusTransport = new jp.TransportLayerWS({ url: brokerUrl });
+const jobping = jp.createJobPing({
   transportLayer: statusTransport,
   resultTransportLayer: statusTransport,
-  queue: new JPItemQueueInMemory(new EnvelopeEndpointInMemory()),
+  queue: new jp.JPItemQueueInMemory(new jp.EnvelopeEndpointInMemory()),
 });
 
 function readOption(name, fallback) {
@@ -57,7 +54,7 @@ async function fetchJson(url, options) {
   return response.json();
 }
 
-const runOneRequest = jp.wrap(async function runOneRequest(requestId) {
+const runOneRequest = jobping.wrap(async function runOneRequest(requestId) {
   const params = new URLSearchParams({
     request_id: String(requestId),
     sleep_seconds: String(sleepSeconds),

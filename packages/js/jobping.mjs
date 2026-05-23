@@ -3,6 +3,7 @@
 import { EndpointProxy } from "./endpoint_proxy.mjs";
 import { ResultHandoff } from "./result_handoff.mjs";
 import { StateSync } from "./state_sync.mjs";
+import { DEFAULT_TRANSPORT_LAYER, DEFAULT_QUEUE } from "./defaults.mjs";
 
 export function isJobPingDisabled() {
   if (globalThis.__JOBPING_DISABLED__ === true) {
@@ -47,12 +48,15 @@ export class JobPing {
 export const JobPingClass = JobPing;
 
 export function createJobPing({
-  transportLayer,
-  queue,
+  transportLayer = DEFAULT_TRANSPORT_LAYER,
+  queue = DEFAULT_QUEUE,
   resultTransportLayer = transportLayer,
-}) {
+} = {}) {
   if (!transportLayer) {
-    throw new Error("createJobPing requires a transportLayer");
+    throw new Error(
+      "createJobPing requires a transportLayer. " +
+        "Install socket.io-client or pass an explicit transport."
+    );
   }
   if (!queue) {
     throw new Error("createJobPing requires a queue");
