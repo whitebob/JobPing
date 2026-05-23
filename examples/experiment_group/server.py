@@ -133,8 +133,19 @@ async def reset_metrics() -> dict[str, str]:
 @app.get("/", response_class=HTMLResponse)
 async def index() -> str:
     import pathlib
-    html = pathlib.Path(__file__).with_name("client.html").read_text()
-    return html
+    return pathlib.Path(__file__).with_name("browser_client.html").read_text()
+
+
+@app.get("/browser_client.css")
+async def browser_css() -> FileResponse:
+    import pathlib
+    return FileResponse(pathlib.Path(__file__).with_name("browser_client.css"))
+
+
+@app.get("/browser_client.js")
+async def browser_js() -> FileResponse:
+    import pathlib
+    return FileResponse(pathlib.Path(__file__).with_name("browser_client.js"))
 
 
 @app.get("/jobping_browser.mjs")

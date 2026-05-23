@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>JobPing Experiment Group Browser Client</title>
+    <link rel="stylesheet" href="./browser_client.css" />
+    <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
+    <script type="module" src="./browser_client.js"></script>
+  </head>
+  <body>
+    <h1>JobPing experiment group browser client</h1>
+
+    <p>
+      This page uses <code>jp.wrap(fetch)</code> to call the experiment server.
+      When the server returns a <code>job_ref</code>, the client automatically
+      accepts it, awaits the result via WebSocket, and unboxes it — the calling
+      code only sees the final result.
+    </p>
+
+    <label>
+      Server URL
+      <input id="serverUrl" value="http://127.0.0.1:8887" />
+    </label>
+
+    <label>
+      Broker URL (WebSocket)
+      <input id="brokerUrl" value="http://127.0.0.1:8890" />
+    </label>
+
+    <label>
+      Request count
+      <input id="requestCount" type="number" min="1" value="100" />
+    </label>
+
+    <label>
+      Sleep seconds per request
+      <input id="sleepSeconds" type="number" min="0" step="0.1" value="1" />
+    </label>
+
+    <button id="runButton">Run experiment group</button>
+    <button id="resetButton">Reset counters</button>
+
+    <h2>Result</h2>
+    <pre id="result">Click "Run experiment group" to start.</pre>
+  </body>
+</html>
