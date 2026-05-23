@@ -37,9 +37,10 @@ async function runExperiment() {
     throw new Error("Sleep seconds must be a non-negative number.");
   }
 
-  const transport = new TransportLayerWS({ url: brokerUrl });
+  const statusTransport = new TransportLayerWS({ url: brokerUrl });
   const jp = createJobPing({
-    transportLayer: transport,
+    transportLayer: statusTransport,
+    resultTransportLayer: statusTransport,
     queue: new JPItemQueueInMemory(new EnvelopeEndpointInMemory()),
   });
 
@@ -66,7 +67,7 @@ async function runExperiment() {
   const elapsedSeconds = (performance.now() - startedAt) / 1000;
   const metrics = await fetchJson(`${serverUrl}/metrics`);
 
-  transport.socket.disconnect();
+  statusTransport.socket.disconnect();
 
   return {
     requestCount,

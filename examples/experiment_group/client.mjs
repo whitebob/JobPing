@@ -17,9 +17,10 @@ const brokerUrl = (() => {
   return value ? value.slice(prefix.length) : "http://127.0.0.1:8890";
 })();
 
-const transport = new TransportLayerWS({ url: brokerUrl });
+const statusTransport = new TransportLayerWS({ url: brokerUrl });
 const jp = createJobPing({
-  transportLayer: transport,
+  transportLayer: statusTransport,
+  resultTransportLayer: statusTransport,
   queue: new JPItemQueueInMemory(new EnvelopeEndpointInMemory()),
 });
 
@@ -105,8 +106,8 @@ try {
 // Ensure transport socket is closed so Node can exit cleanly when the client
 // finishes. Disconnect the socket and exit with the captured exit code.
 try {
-  if (typeof transport !== 'undefined' && transport && transport.socket && typeof transport.socket.disconnect === 'function') {
-    transport.socket.disconnect();
+  if (typeof statusTransport !== 'undefined' && statusTransport && statusTransport.socket && typeof statusTransport.socket.disconnect === 'function') {
+    statusTransport.socket.disconnect();
   }
 } catch (e) {
   // ignore
