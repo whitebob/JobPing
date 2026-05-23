@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=75", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "jobping"
+version = "0.1.0"
+description = "Endpoint rendezvous bridge for JPItem state synchronization and result handoff"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+authors = [{ name = "whitebob" }]
+keywords = ["async", "rendezvous", "state-sync", "result-handoff"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+
+dependencies = [
+    "httpx>=0.28",
+    "python-socketio>=5.11",
+    "aiohttp>=3.13",
+]
+
+[project.optional-dependencies]
+dev = [
+    "fastapi>=0.124",
+    "uvicorn>=0.38",
+    "pytest>=9",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+
+[tool.setuptools.package-dir]
+"jobping" = "jobping"

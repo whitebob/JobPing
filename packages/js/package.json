@@ -1,0 +1,44 @@
+{
+  "name": "jobping",
+  "version": "0.1.0",
+  "description": "Endpoint rendezvous bridge for JPItem state synchronization and result handoff",
+  "type": "module",
+  "main": "./index.mjs",
+  "exports": {
+    ".": "./index.mjs",
+    "./imp/transport_layer_ws": "./imp/transport_layer_ws.mjs",
+    "./imp/transport_layer_https": "./imp/transport_layer_https.mjs"
+  },
+  "files": [
+    "index.mjs",
+    "defaults.mjs",
+    "jobping.mjs",
+    "endpoint_proxy.mjs",
+    "state_sync.mjs",
+    "result_handoff.mjs",
+    "transport_layer.mjs",
+    "envelope.mjs",
+    "envelope_endpoint.mjs",
+    "jpitem_queue.mjs",
+    "id.mjs",
+    "id_browser.mjs",
+    "browser_entry.mjs",
+    "imp/"
+  ],
+  "scripts": {
+    "build:browser": "node ../../scripts/build_browser_bundle.mjs"
+  },
+  "dependencies": {
+    "socket.io-client": "^4.8.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.0"
+  },
+  "keywords": ["async", "rendezvous", "state-sync", "result-handoff", "jobping"],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/whitebob/JobPing.git",
+    "directory": "packages/js"
+  }
+}
