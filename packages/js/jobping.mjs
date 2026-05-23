@@ -28,23 +28,17 @@ export class JobPing {
         return wrappedCallable(...args);
       }
 
-      console.log("doing client_proxy.capture_call_input");
-      console.log("doing client_proxy.call_wrapped_callable");
       const output = await wrappedCallable(...args);
 
-      console.log("doing client_proxy.inspect_call_output");
       if (!this.endpointProxy.isJobRef(output)) {
         return output;
       }
 
-      console.log("doing client_proxy.accept_job_ref");
       this.endpointProxy.accept(output.job_id);
 
-      console.log("doing client_proxy.await_result");
-      const completedItem = await this.endpointProxy.awaitResult(output.job_id);
+      const completedItem = await this.endpointProxy.awaitResult(output.job_id, { timeoutMs: 30000 });
       this.endpointProxy.release(output.job_id);
 
-      console.log("doing accepted_jpitem.return_result");
       return completedItem.result;
     }.bind(this);
   }

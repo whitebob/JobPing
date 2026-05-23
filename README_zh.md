@@ -15,6 +15,63 @@ The current branch separates SDK code, runnable examples, tests, and mock-only h
 - `sandbox/js/` and `sandbox/python/jobping_sandbox/`: mock-only implementations and factories used by examples/tests.
 - `tests/js/` and `tests/python/`: regression tests split by runtime.
 
+## 性能基准
+
+200 并发请求，每个请求模拟 20 s 工作（httpx 默认连接池 100）。
+
+| 组别 | 服务端 | 客户端 | 耗时 | 最大并发 | 成功率 |
+|---|---|---|---|---|---|
+| 对照 | FastAPI（无 JP） | httpx | 40.28 s | 100 | 200/200 |
+| 对照 | FastAPI（无 JP） | httpx + JP | 40.30 s | 100 | 200/200 |
+| 实验 | FastAPI + JP | httpx | 40.30 s | 100 | 200/200 |
+| **实验** | **FastAPI + JP** | **httpx + JP** | **20.35 s** | **3** | **200/200** |
+
+当双方都使用 JobPing 时，服务端立即返回 job_ref 并释放 HTTP 连接，客户端连接池在毫秒级回收，而非被占用 20 s。这消除了连接瓶颈：200 个并发请求在 20 s 内完成，服务端同时活跃的 HTTP handler 峰值仅为 3。
+
+Node.js / 1000 并发
+
+| 组别 | 服务端 | 客户端 | 耗时 | 最大并发 | 成功率 |
+|---|---|---|---|---|---|
+| 对照 | Node（无 JP） | Node | 20.54 s | 1000 | 1000/1000 |
+| 对照 | Node（无 JP） | Node + JP | 20.55 s | 1000 | 1000/1000 |
+| 实验 | Node + JP | Node | 20.34 s | 1000 | 1000/1000 |
+| **实验** | **Node + JP** | **Node + JP** | **20.30 s** | **1** | **1000/1000** |
+
+单线程 Node 上 1000 并发请求。不使用 JobPing 时，服务端需同时维持 1000 个 HTTP 长连接 20 s。双方使用 JobPing 后，连接在毫秒级释放——活跃 handler 峰值从 1000 降至 1。
+
+Node 服务端 + Python 客户端 / 200 并发
+
+| 组别 | 服务端 | 客户端 | 耗时 | 最大并发 | 成功率 |
+|---|---|---|---|---|---|
+| 对照 | Node（无 JP） | httpx | 40.29 s | 100 | 200/200 |
+| 对照 | Node（无 JP） | httpx + JP | 40.29 s | 100 | 200/200 |
+| 实验 | Node + JP | httpx | 40.29 s | 100 | 200/200 |
+| **实验** | **Node + JP** | **httpx + JP** | **20.33 s** | **1** | **200/200** |
+
+跨运行时：Node 服务端 + Python 客户端。httpx 连接池限制（100）仍然支配对照组的耗时。双方使用 JobPing 后，跨语言场景下同样消除了连接瓶颈——200 请求 20 s 完成，活跃 handler 峰值仅 1。
+
+Python 服务端 + Node 客户端 / 200 并发
+
+| 组别 | 服务端 | 客户端 | 耗时 | 最大并发 | 成功率 |
+|---|---|---|---|---|---|
+| 对照 | FastAPI（无 JP） | Node | 20.15 s | 200 | 200/200 |
+| 对照 | FastAPI（无 JP） | Node + JP | 20.11 s | 200 | 200/200 |
+| 实验 | FastAPI + JP | Node | 20.11 s | 200 | 200/200 |
+| 实验 | FastAPI + JP | Node + JP | 20.13 s | 177 | 200/200 |
+
+跨运行时：Python 服务端 + Node 客户端。Node 无连接池限制，200 请求瞬间涌入，实验组 handler 在微秒窗口内大量重叠，max_active 被推到 177。核心收益不变：handler 毫秒级释放而非持有 20 s。
+
+Python 服务端 + Node 客户端 / 1000 并发
+
+| 组别 | 服务端 | 客户端 | 耗时 | 最大并发 | 成功率 |
+|---|---|---|---|---|---|
+| 对照 | FastAPI（无 JP） | Node | 20.53 s | 1000 | 1000/1000 |
+| 对照 | FastAPI（无 JP） | Node + JP | 20.52 s | 1000 | 1000/1000 |
+| 实验 | FastAPI + JP | Node | 20.52 s | 1000 | 1000/1000 |
+| 实验 | FastAPI + JP | Node + JP | 20.66 s | 954 | 1000/1000 |
+
+Node 客户端 1000 并发打入单进程 FastAPI。burst 重叠将实验组的 max_active 推至 954，印证该计数器捕捉的是瞬时峰值而非稳态连接占用。对照组 1000 连接被占满 20 s；实验组毫秒级释放。
+
 ## Current design lens
 
 The important symmetry is not `server` versus `client`. Those are deployment roles. The protocol role that matters is whether an endpoint is producing a value later or waiting for a peer to produce it.

@@ -17,8 +17,9 @@ const brokerUrl = (() => {
   return value ? value.slice(prefix.length) : "http://127.0.0.1:8890";
 })();
 
+const transport = new TransportLayerWS({ url: brokerUrl });
 const jp = createJobPing({
-  transportLayer: new TransportLayerWS({ url: brokerUrl }),
+  transportLayer: transport,
   queue: new JPItemQueueInMemory(new EnvelopeEndpointInMemory()),
 });
 
@@ -100,3 +101,19 @@ try {
   console.error(error);
   process.exitCode = 1;
 }
+
+// Ensure transport socket is closed so Node can exit cleanly when the client
+// finishes. Disconnect the socket and exit with the captured exit code.
+try {
+  if (typeof transport !== 'undefined' && transport && transport.socket && typeof transport.socket.disconnect === 'function') {
+    transport.socket.disconnect();
+  }
+} catch (e) {
+  // ignore
+}
+
+// Give the socket a brief moment to flush then exit.
+setTimeout(() => {
+  // eslint-disable-next-line no-process-exit
+  process.exit(process.exitCode || 0);
+}, 50);

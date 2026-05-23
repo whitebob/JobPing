@@ -127,29 +127,20 @@ class JobPing:
                 if is_jobping_disabled():
                     return await wrapped_callable(*args, **kwargs)
 
-                print("doing server_proxy.capture_call_input")
-                print("doing server_proxy.inspect_transport_context")
                 job_id = self.job_context_provider(*args, **kwargs)
 
                 if job_id is not None:
-                    print("doing endpoint_proxy.offer")
                     jp_item = self.endpoint_proxy.offer(job_id)
-                    print("doing endpoint_proxy.defer")
                     self.endpoint_proxy.defer(jp_item)
-                    print("doing endpoint_proxy.fulfill_later")
                     asyncio.create_task(
                         self.endpoint_proxy.fulfill_later(
                             job_id,
                             lambda: wrapped_callable(*args, **kwargs),
                         ),
                     )
-                    print("doing server_proxy.return_job_ref_offer")
                     return self.endpoint_proxy.make_job_ref(job_id)
 
-                print("doing server_proxy.no_jobping_context_call_wrapped_callable")
-                output = await wrapped_callable(*args, **kwargs)
-                print("doing server_proxy.capture_call_output")
-                return output
+                return await wrapped_callable(*args, **kwargs)
 
             return wrapper
 

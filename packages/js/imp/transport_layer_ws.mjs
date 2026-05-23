@@ -13,6 +13,54 @@ try {
   // leave io undefined; constructor will throw if used without dependency
 }
 
+class Mailbox {
+  constructor() {
+    this._messages = [];
+    this._waiters = [];
+  }
+
+  put(data) {
+    // Try to match a waiting consumer
+    const waiterIndex = this._waiters.findIndex((w) => w.matches(data));
+    if (waiterIndex !== -1) {
+      const [waiter] = this._waiters.splice(waiterIndex, 1);
+      waiter.resolve(data);
+      return;
+    }
+    // No matching waiter — store
+    this._messages.push(data);
+  }
+
+  get(matches, timeout) {
+    // Check stored messages first
+    const msgIndex = this._messages.findIndex((m) => matches(m));
+    if (msgIndex !== -1) {
+      return Promise.resolve(this._messages.splice(msgIndex, 1)[0]);
+    }
+
+    // Register waiter
+    return new Promise((resolve, reject) => {
+      const waiter = { matches, resolve };
+      const timer = setTimeout(() => {
+        const i = this._waiters.indexOf(waiter);
+        if (i !== -1) this._waiters.splice(i, 1);
+        reject(new Error("Timed out waiting for message"));
+      }, timeout);
+
+      waiter.resolve = (data) => {
+        clearTimeout(timer);
+        resolve(data);
+      };
+
+      this._waiters.push(waiter);
+    });
+  }
+
+  size() {
+    return { messages: this._messages.length, waiters: this._waiters.length };
+  }
+}
+
 export class TransportLayerWS extends TransportLayer {
   constructor({ url, opts } = {}) {
     super();
@@ -22,25 +70,15 @@ export class TransportLayerWS extends TransportLayer {
 
     this.url = url;
     this.socket = io.io(url, opts);
-    this._messages = [];
-    this._waiters = [];
+    this._messageMailbox = new Mailbox();
+    this._envelopeMailbox = new Mailbox();
 
     this.socket.on("jobping:envelope", (envelope) => {
-      // no-op here; envelopes typically go to an envelope endpoint
-      // but allow clients to listen via recvEnvelope implementation below
-      if (!this._envelopePool) this._envelopePool = [];
-      this._envelopePool.push(envelope);
-      this._drainWaiters();
+      this._envelopeMailbox.put(envelope);
     });
 
     this.socket.on("jobping:message", (message) => {
-      const waiterIndex = this._waiters.findIndex((w) => w.matches(message));
-      if (waiterIndex !== -1) {
-        const [waiter] = this._waiters.splice(waiterIndex, 1);
-        waiter.resolve(message);
-        return;
-      }
-      this._messages.push(message);
+      this._messageMailbox.put(message);
     });
   }
 
@@ -80,27 +118,12 @@ export class TransportLayerWS extends TransportLayer {
     this.socket.emit("jobping:envelope", envelope);
   }
 
-  recvEnvelope({ jobId, type, timeout = 1000 } = {}) {
-    // drain local pool first
-    this._envelopePool = this._envelopePool ?? [];
-    for (let i = 0; i < this._envelopePool.length; i++) {
-      const e = this._envelopePool[i];
-      if ((jobId == null || e.job_id === jobId) && (type == null || e.type === type)) {
-        return Promise.resolve(this._envelopePool.splice(i, 1)[0]);
-      }
-    }
+  recvEnvelope({ jobId, type, timeout, timeoutMs = 1000 } = {}) {
+    const matches = (envelope) =>
+      (jobId == null || envelope.job_id === jobId) &&
+      (type == null || envelope.type === type);
 
-    return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error("Timed out waiting for envelope")), timeout);
-      const handler = (envelope) => {
-        if ((jobId == null || envelope.job_id === jobId) && (type == null || envelope.type === type)) {
-          clearTimeout(timer);
-          this.socket.off("jobping:envelope", handler);
-          resolve(envelope);
-        }
-      };
-      this.socket.on("jobping:envelope", handler);
-    });
+    return this._envelopeMailbox.get(matches, timeout ?? timeoutMs);
   }
 
   sendMessage(message) {
@@ -108,53 +131,20 @@ export class TransportLayerWS extends TransportLayer {
     this.socket.emit("jobping:message", message);
   }
 
-  recvMessage({ kind, jobId, timeout = 1000 } = {}) {
-    const idx = this._messages.findIndex((m) => this.matchesMessage(m, kind, jobId));
-    if (idx !== -1) return Promise.resolve(this._messages.splice(idx, 1)[0]);
-
-    return new Promise((resolve, reject) => {
-      const waiter = {
-        matches: (message) => this.matchesMessage(message, kind, jobId),
-        resolve,
-      };
-      const timer = setTimeout(() => {
-        const i = this._waiters.indexOf(waiter);
-        if (i !== -1) this._waiters.splice(i, 1);
-        reject(new Error("Timed out waiting for transport message"));
-      }, timeout);
-
-      waiter.resolve = (message) => {
-        clearTimeout(timer);
-        resolve(message);
-      };
-
-      this._waiters.push(waiter);
-    });
-  }
-
-  size() {
-    return { messages: this._messages.length, waiters: this._waiters.length };
-  }
-
-  matchesMessage(message, kind, jobId) {
-    return (
+  recvMessage({ kind, jobId, timeout, timeoutMs = 1000 } = {}) {
+    const matches = (message) =>
       typeof message === "object" &&
       message !== null &&
       (kind == null || message.kind === kind) &&
-      (jobId == null || message.job_id === jobId)
-    );
+      (jobId == null || message.job_id === jobId);
+
+    return this._messageMailbox.get(matches, timeout ?? timeoutMs);
   }
 
-  _drainWaiters() {
-    for (let i = 0; i < this._messages.length; i++) {
-      const message = this._messages[i];
-      const waiterIndex = this._waiters.findIndex((w) => w.matches(message));
-      if (waiterIndex !== -1) {
-        const [waiter] = this._waiters.splice(waiterIndex, 1);
-        this._messages.splice(i, 1);
-        waiter.resolve(message);
-        i--;
-      }
-    }
+  size() {
+    return {
+      messages: this._messageMailbox.size(),
+      envelopes: this._envelopeMailbox.size(),
+    };
   }
 }

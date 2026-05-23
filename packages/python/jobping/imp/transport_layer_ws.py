@@ -17,6 +17,50 @@ from jobping.transport_layer import (
 )
 
 
+class _Mailbox:
+    """Waiter/message matchmaker — no messages lost to wrong consumer.
+
+    When a message arrives: route to a matching waiter; if none, store.
+    When a consumer waits: check stored messages; if none match, register waiter.
+    """
+
+    def __init__(self) -> None:
+        self._messages: list[dict] = []
+        self._waiters: list[list] = []  # [matches_callable, event, data_or_None]
+
+    def put(self, data: Any) -> None:
+        # Try to match a waiting consumer
+        for entry in self._waiters:
+            if entry[0](data):
+                entry[2] = data  # mutate in-place so get() sees the value
+                entry[1].set()
+                self._waiters.remove(entry)
+                return
+        # No matching waiter — store
+        self._messages.append(data)
+
+    async def get(self, matches: callable, timeout: float) -> Any:
+        # Check stored messages first
+        for i, msg in enumerate(self._messages):
+            if matches(msg):
+                return self._messages.pop(i)
+
+        # Register waiter
+        event = asyncio.Event()
+        entry = [matches, event, None]  # list so we can mutate result
+        self._waiters.append(entry)
+        try:
+            await asyncio.wait_for(event.wait(), timeout=timeout)
+            return entry[2]
+        except asyncio.TimeoutError as exc:
+            raise TimeoutError("Timed out waiting for message") from exc
+        finally:
+            try:
+                self._waiters.remove(entry)
+            except ValueError:
+                pass  # already removed by put()
+
+
 class TransportLayerWS(TransportLayer):
     """Async Socket.IO-backed TransportLayer.
 
@@ -39,28 +83,30 @@ class TransportLayerWS(TransportLayer):
 
         self._sio: "socketio.AsyncClient" = socketio.AsyncClient(**client_kwargs)
         self._connected = False
-        self._envelope_queue: asyncio.Queue[JobPingEnvelope] = asyncio.Queue()
-        self._message_queue: asyncio.Queue[TransportMessage] = asyncio.Queue()
+        self._connect_lock = asyncio.Lock()
+        self._message_mailbox = _Mailbox()
+        self._envelope_mailbox = _Mailbox()
 
-        # Register handlers
         @self._sio.on("jobping:envelope", namespace=self.namespace)
-        async def _on_envelope(data: dict) -> None:  # noqa: E305 - explicit handler
-            # Assume data is already a JobPingEnvelope-compatible mapping
+        async def _on_envelope(data: dict) -> None:
             try:
-                self._envelope_queue.put_nowait(JobPingEnvelope(**data))
+                envelope = JobPingEnvelope(**data)
             except Exception:
-                # Fallback: put raw data
-                self._envelope_queue.put_nowait(data)  # type: ignore
+                envelope = data
+            self._envelope_mailbox.put(envelope)
 
         @self._sio.on("jobping:message", namespace=self.namespace)
-        async def _on_message(data: dict) -> None:  # noqa: E305 - explicit handler
-            self._message_queue.put_nowait(data)
+        async def _on_message(data: dict) -> None:
+            self._message_mailbox.put(data)
 
     async def _ensure_connected(self) -> None:
         if self._connected and getattr(self._sio, "connected", False):
             return
-        await self._sio.connect(self.url, namespaces=[self.namespace])
-        self._connected = True
+        async with self._connect_lock:
+            if self._connected and getattr(self._sio, "connected", False):
+                return
+            await self._sio.connect(self.url, namespaces=[self.namespace])
+            self._connected = True
 
     def attach_job_id(self, carrier: TransportCarrier | None, job_id: str) -> TransportCarrier:
         if not isinstance(job_id, str) or not job_id:
@@ -92,41 +138,51 @@ class TransportLayerWS(TransportLayer):
         return envelope if is_envelope(envelope) else None
 
     def send_envelope(self, envelope: JobPingEnvelope) -> None:
-        # Schedule async emit in background
         async def _emit():
-            await self._ensure_connected()
-            await self._sio.emit("jobping:envelope", envelope, namespace=self.namespace)
+            try:
+                await self._ensure_connected()
+                await self._sio.emit("jobping:envelope", envelope, namespace=self.namespace)
+            except Exception:
+                import sys
+                import traceback
+                print("TransportLayerWS send_envelope._emit failed:", file=sys.stderr)
+                traceback.print_exc()
 
         asyncio.create_task(_emit())
 
     async def recv_envelope(self, *, job_id: str | None = None, type: EnvelopeType | None = None, timeout: float = 1.0) -> JobPingEnvelope:
-        try:
-            while True:
-                envelope = await asyncio.wait_for(self._envelope_queue.get(), timeout=timeout)
-                # Basic filtering
-                if job_id is not None and getattr(envelope, "job_id", None) != job_id:
-                    continue
-                if type is not None and getattr(envelope, "type", None) != type:
-                    continue
-                return envelope
-        except asyncio.TimeoutError as exc:
-            raise TimeoutError("Timed out waiting for envelope") from exc
+        await self._ensure_connected()
+
+        def matches(envelope: Any) -> bool:
+            if job_id is not None and getattr(envelope, "job_id", None) != job_id:
+                return False
+            if type is not None and getattr(envelope, "type", None) != type:
+                return False
+            return True
+
+        return await self._envelope_mailbox.get(matches, timeout)
 
     def send_message(self, message: TransportMessage) -> None:
         async def _emit():
-            await self._ensure_connected()
-            await self._sio.emit("jobping:message", message, namespace=self.namespace)
+            try:
+                await self._ensure_connected()
+                await self._sio.emit("jobping:message", message, namespace=self.namespace)
+            except Exception:
+                import sys
+                import traceback
+                print("TransportLayerWS send_message._emit failed:", file=sys.stderr)
+                traceback.print_exc()
 
         asyncio.create_task(_emit())
 
     async def recv_message(self, *, kind: str | None = None, job_id: str | None = None, timeout: float = 1.0) -> TransportMessage:
-        try:
-            while True:
-                message = await asyncio.wait_for(self._message_queue.get(), timeout=timeout)
-                if kind is not None and message.get("kind") != kind:
-                    continue
-                if job_id is not None and message.get("job_id") != job_id:
-                    continue
-                return message
-        except asyncio.TimeoutError as exc:
-            raise TimeoutError("Timed out waiting for transport message") from exc
+        await self._ensure_connected()
+
+        def matches(message: Any) -> bool:
+            if kind is not None and message.get("kind") != kind:
+                return False
+            if job_id is not None and message.get("job_id") != job_id:
+                return False
+            return True
+
+        return await self._message_mailbox.get(matches, timeout)

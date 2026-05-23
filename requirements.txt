@@ -1,4 +1,5 @@
-# Using httpx for HTTP transport; aiohttp is not required.
+# httpx for JobPing HTTPS transport; aiohttp required by python-socketio/python-engineio for async client.
+aiohttp==3.13.5
 fastapi==0.124.0
 httpx==0.28.1
 pytest==9.0.1

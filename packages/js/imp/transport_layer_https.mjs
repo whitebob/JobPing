@@ -50,12 +50,12 @@ export class TransportLayerHTTPS extends TransportLayer {
     fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(envelope) }).catch(() => {});
   }
 
-  async recvEnvelope({ jobId, type, timeout = 1000 } = {}) {
+  async recvEnvelope({ jobId, type, timeout, timeoutMs = 1000 } = {}) {
     const url = new URL(`${this.baseUrl}/envelope`);
     if (jobId != null) url.searchParams.set("jobId", jobId);
     if (type != null) url.searchParams.set("type", type);
 
-    const deadline = Date.now() + timeout;
+    const deadline = Date.now() + (timeout ?? timeoutMs);
     while (Date.now() < deadline) {
       try {
         const resp = await fetch(url.toString());
@@ -73,12 +73,12 @@ export class TransportLayerHTTPS extends TransportLayer {
     fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(message) }).catch(() => {});
   }
 
-  async recvMessage({ kind, jobId, timeout = 1000 } = {}) {
+  async recvMessage({ kind, jobId, timeout, timeoutMs = 1000 } = {}) {
     const url = new URL(`${this.baseUrl}/message`);
     if (kind != null) url.searchParams.set("kind", kind);
     if (jobId != null) url.searchParams.set("jobId", jobId);
 
-    const deadline = Date.now() + timeout;
+    const deadline = Date.now() + (timeout ?? timeoutMs);
     while (Date.now() < deadline) {
       try {
         const resp = await fetch(url.toString());

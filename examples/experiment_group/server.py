@@ -14,10 +14,15 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from jobping import create_jobping, EnvelopeEndpointInMemory, JPItemQueueInMemory
+from jobping.imp.transport_layer_ws import TransportLayerWS
+import os
 
 # Use WebSocket transport connected to the socket broker started by the test harness.
+BROKER_URL = os.environ.get("BROKER_URL", os.environ.get("JOBPING_WS_URL", "http://127.0.0.1:8890"))
 # Use the formal in-memory envelope endpoint and JPItemQueue implementations.
 jp = create_jobping(
+    status_transport_layer=TransportLayerWS(BROKER_URL),
+    result_transport_layer=TransportLayerWS(BROKER_URL),
     queue=JPItemQueueInMemory(EnvelopeEndpointInMemory()),
 )
 
