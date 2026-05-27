@@ -6,6 +6,7 @@ jobping.imp to separate concrete implementations from public ABCs.
 from __future__ import annotations
 
 import asyncio
+import time
 from typing import Any
 
 from jobping.envelope import is_envelope, JobPingEnvelope, EnvelopeType
@@ -71,9 +72,12 @@ class TransportLayerWS(TransportLayer):
     first async operation is requested.
     """
 
-    def __init__(self, url: str, namespace: str = "/", **client_kwargs: Any) -> None:
+    def __init__(self, url: str, namespace: str = "/", *, idle_timeout_seconds: int | None = None, **client_kwargs: Any) -> None:
         self.url = url
         self.namespace = namespace
+        self._idle_timeout = idle_timeout_seconds
+        self._last_activity = time.monotonic()
+        self._idle_task: asyncio.Task | None = None
         try:
             import socketio  # type: ignore
         except Exception as exc:  # pragma: no cover - optional dependency
@@ -99,14 +103,49 @@ class TransportLayerWS(TransportLayer):
         async def _on_message(data: dict) -> None:
             self._message_mailbox.put(data)
 
+    def _touch(self) -> None:
+        self._last_activity = time.monotonic()
+
+    async def disconnect(self) -> None:
+        """Actively close the Socket.IO connection."""
+        if self._connected:
+            try:
+                await self._sio.disconnect()
+            except Exception:
+                pass
+            self._connected = False
+        if self._idle_task and not self._idle_task.done():
+            self._idle_task.cancel()
+            self._idle_task = None
+
+    async def _start_idle_watcher(self) -> None:
+        """Background task that disconnects after idle_timeout_seconds of inactivity."""
+        if self._idle_timeout is None:
+            return
+        if self._idle_task and not self._idle_task.done():
+            return
+
+        async def _watcher() -> None:
+            while True:
+                await asyncio.sleep(self._idle_timeout / 2)
+                if time.monotonic() - self._last_activity > self._idle_timeout:
+                    await self.disconnect()
+                    return
+
+        self._idle_task = asyncio.create_task(_watcher())
+
     async def _ensure_connected(self) -> None:
         if self._connected and getattr(self._sio, "connected", False):
+            self._touch()
             return
         async with self._connect_lock:
             if self._connected and getattr(self._sio, "connected", False):
+                self._touch()
                 return
             await self._sio.connect(self.url, namespaces=[self.namespace])
             self._connected = True
+            self._touch()
+            await self._start_idle_watcher()
 
     def attach_job_id(self, carrier: TransportCarrier | None, job_id: str) -> TransportCarrier:
         if not isinstance(job_id, str) or not job_id:
@@ -138,6 +177,7 @@ class TransportLayerWS(TransportLayer):
         return envelope if is_envelope(envelope) else None
 
     def send_envelope(self, envelope: JobPingEnvelope) -> None:
+        self._touch()
         async def _emit():
             try:
                 await self._ensure_connected()
@@ -163,6 +203,7 @@ class TransportLayerWS(TransportLayer):
         return await self._envelope_mailbox.get(matches, timeout)
 
     def send_message(self, message: TransportMessage) -> None:
+        self._touch()
         async def _emit():
             try:
                 await self._ensure_connected()

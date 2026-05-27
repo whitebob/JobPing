@@ -20,6 +20,18 @@ def _assert_valid_job_id(job_id: str) -> None:
         raise ValueError("job_id must be a non-empty string")
 
 
+def _limit_trace_depth(sub_jobs: list[dict], max_depth: int) -> list[dict]:
+    """Truncate sub_jobs beyond *max_depth* to prevent unbounded payload."""
+    if max_depth <= 0:
+        return [{"_truncated": True}]
+    result = []
+    for sj in sub_jobs:
+        sj_copy = dict(sj)
+        sj_copy["sub_jobs"] = _limit_trace_depth(sj_copy.get("sub_jobs", []), max_depth - 1)
+        result.append(sj_copy)
+    return result
+
+
 class EndpointProxy:
     def __init__(
         self,
@@ -28,11 +40,15 @@ class EndpointProxy:
         result_handoff: ResultHandoff,
         queue: Any,
         create_job_id: Callable[[], str] = default_create_job_id,
+        max_trace_depth: int = 10,
     ) -> None:
         self.state_sync = state_sync
         self.result_handoff = result_handoff
         self.queue = queue
         self._create_job_id = create_job_id
+        self.max_trace_depth = max_trace_depth
+        self._active_trace: dict | None = None  # set by JobPing wrap/wrap_trace
+        self._sub_traces: list[dict] = []       # accumulated from nested await_result calls
 
     def create_job_id(self) -> str:
         return self._create_job_id()
@@ -93,7 +109,15 @@ class EndpointProxy:
 
         item.status = JPITEM_COMPLETED
         item.result = result
-        self.result_handoff.fulfill(job_id, result)
+
+        trace = None
+        if self._active_trace:
+            trace = dict(self._active_trace)
+            trace["sub_jobs"] = _limit_trace_depth(self._sub_traces, self.max_trace_depth)
+            self._sub_traces = []
+            self._active_trace = None
+
+        self.result_handoff.fulfill(job_id, result, trace=trace)
         return item
 
     async def fulfill_later(
@@ -102,9 +126,13 @@ class EndpointProxy:
         task: Callable[[], Awaitable[Any]],
     ) -> Any:
         _assert_valid_job_id(job_id)
-        result = await task()
-        self.fulfill(job_id, result)
-        return result
+        try:
+            result = await task()
+            self.fulfill(job_id, result)
+            return result
+        except BaseException:
+            self._active_trace = None
+            raise
 
     async def await_result(
         self,
@@ -122,5 +150,5 @@ class EndpointProxy:
         item.result = result
         return item
 
-    def release(self, job_id: str) -> MockJPItem:
+    def release(self, job_id: str) -> Any:
         return self.queue.release(job_id)

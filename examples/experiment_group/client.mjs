@@ -14,12 +14,13 @@ const brokerUrl = (() => {
   return value ? value.slice(prefix.length) : "http://127.0.0.1:8890";
 })();
 
-const statusTransport = new jp.TransportLayerWS({ url: brokerUrl });
-const jobping = jp.createJobPing({
-  transportLayer: statusTransport,
-  resultTransportLayer: statusTransport,
+const transport = new jp.TransportLayerWS({ url: brokerUrl });
+const endpointProxy = new jp.EndpointProxy({
+  stateSync: new jp.StateSync({ transportLayer: transport }),
+  resultHandoff: new jp.ResultHandoff({ transportLayer: transport }),
   queue: new jp.JPItemQueueInMemory(new jp.EnvelopeEndpointInMemory()),
 });
+const jobping = new jp.JobPing({ endpointProxy });
 
 function readOption(name, fallback) {
   const prefix = `--${name}=`;
@@ -103,8 +104,8 @@ try {
 // Ensure transport socket is closed so Node can exit cleanly when the client
 // finishes. Disconnect the socket and exit with the captured exit code.
 try {
-  if (typeof statusTransport !== 'undefined' && statusTransport && statusTransport.socket && typeof statusTransport.socket.disconnect === 'function') {
-    statusTransport.socket.disconnect();
+  if (typeof transport !== 'undefined' && transport && typeof transport.disconnect === 'function') {
+    transport.disconnect();
   }
 } catch (e) {
   // ignore

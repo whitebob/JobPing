@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import os
+import time
 from collections.abc import Awaitable, Callable
 from functools import wraps
 from typing import Any, TypeVar
@@ -13,51 +15,93 @@ from jobping.result_handoff import ResultHandoff
 from jobping.state_sync import StateSync
 from jobping.transport_layer import TransportLayer
 from jobping.imp.transport_layer_ws import TransportLayerWS
-from jobping.imp.transport_layer_https import TransportLayerHTTPS
+from jobping.imp.transport_layer_local import LocalTransportLayer
+from jobping.imp.transport_layer_composite import CompositeTransportLayer
+from jobping.imp.broker import EmbeddedBroker
+from jobping.id import create_peer_id
 
 
 Result = TypeVar("Result")
 JobRef = dict[str, str]
 
-
-# Default transport instances are created at module import time so they can
-# reflect environment configuration immediately. This makes the defaults
-# visible to callers without having to construct transports inside
-# create_jobping every time.
-_ws_url = os.environ.get("JOBPING_WS_URL", "http://127.0.0.1:8890")
-_http_base = os.environ.get("JOBPING_HTTP_BASE", _ws_url)
-DEFAULT_STATUS_TRANSPORT: TransportLayer = TransportLayerWS(_ws_url)
-DEFAULT_RESULT_TRANSPORT: TransportLayer = TransportLayerHTTPS(_http_base)
-
-# Default queue uses the in-memory queue and in-memory envelope endpoint so
-# examples and tests work out-of-the-box without extra configuration.
-# IMPORTANT: DEFAULT_QUEUE is a module-level, shared, mutable instance. Calling
-# create_jobping() without passing an explicit queue will return JobPing
-# instances that share the same in-memory queue. This is convenient for
-# examples and quick-starts but may be undesirable if you need per-JobPing
-# isolation (e.g., separate task domains, priorities, or heavy load).
-# To opt out, pass queue=JPItemQueueInMemory(EnvelopeEndpointInMemory()) to
-# create_jobping so each JobPing gets its own queue instance.
-from jobping.jpitem_queue import JPItemQueueInMemory
-from jobping.envelope_endpoint import EnvelopeEndpointInMemory
-
-DEFAULT_QUEUE = JPItemQueueInMemory(EnvelopeEndpointInMemory())
+# Per-job trace flag — set by wrap_trace() and inherited by nested calls via
+# the x-jobping-trace-enabled header.  ContextVar defaults to False so the
+# normal path has zero overhead beyond a single boolean read.
+_trace_enabled: contextvars.ContextVar[bool] = contextvars.ContextVar(
+    "jobping_trace_enabled", default=False
+)
 
 
 def is_jobping_disabled() -> bool:
     return os.environ.get("JOBPING_DISABLED", "").lower() in {"1", "true", "yes", "on"}
 
 
-def _default_job_context_provider_from_transport(transport: TransportLayer):
-    """Return a job_context_provider that tries to extract a job_id from common
-    request-like objects using the provided transport's extract_job_id API.
+def _check_trace_header(*args: Any, **kwargs: Any) -> bool:
+    """Inspect the incoming request for an x-jobping-trace-enabled header."""
+    candidate = kwargs.get("request") if "request" in kwargs else (args[0] if args else None)
+    if candidate is None:
+        return False
 
-    The provider inspects the first positional argument or a 'request' kwarg and
-    attempts to build a carrier mapping with 'headers' to pass to
-    transport.extract_job_id(). This is best-effort and intentionally
-    framework-agnostic (FastAPI/Starlette/Aiohttp/WSGI-compatible where
-    possible).
-    """
+    headers = None
+    try:
+        hdrs = getattr(candidate, "headers", None)
+        if hdrs is not None:
+            headers = dict(hdrs)
+    except Exception:
+        pass
+
+    if headers is None:
+        try:
+            scope = getattr(candidate, "scope", None)
+            if isinstance(scope, dict) and "headers" in scope:
+                raw = scope["headers"]
+                headers = {k.decode(): v.decode() for k, v in raw}
+        except Exception:
+            pass
+
+    if headers is None and isinstance(candidate, dict):
+        try:
+            headers = {
+                k[5:].replace("_", "-").lower(): v
+                for k, v in candidate.items()
+                if k.startswith("HTTP_")
+            }
+        except Exception:
+            pass
+
+    if headers is None:
+        return False
+
+    for k, v in headers.items():
+        if k.lower() == "x-jobping-trace-enabled":
+            return str(v).lower() in ("1", "true")
+    return False
+
+
+def _compute_hop(*args: Any, **kwargs: Any) -> int:
+    """Extract hop count from trace header if present, else 1."""
+    candidate = kwargs.get("request") if "request" in kwargs else (args[0] if args else None)
+    if candidate is None:
+        return 1
+    headers = None
+    try:
+        hdrs = getattr(candidate, "headers", None)
+        if hdrs is not None:
+            headers = dict(hdrs)
+    except Exception:
+        pass
+    if headers:
+        for k, v in headers.items():
+            if k.lower() == "x-jobping-trace-hop":
+                try:
+                    return int(v) + 1
+                except (ValueError, TypeError):
+                    pass
+    return 1
+
+
+def _default_job_context_provider_from_transport(transport: TransportLayer):
+    """Return a job_context_provider tied to *transport*."""
 
     def provider(*args, **kwargs):
         candidate = kwargs.get("request") if "request" in kwargs else (args[0] if args else None)
@@ -65,16 +109,13 @@ def _default_job_context_provider_from_transport(transport: TransportLayer):
             return None
 
         headers = None
-        # FastAPI / Starlette / aiohttp Request-like: have .headers mapping
         try:
             hdrs = getattr(candidate, "headers", None)
             if hdrs is not None:
-                # dict() works on starlette.datastructures.Headers and other mappings
                 headers = dict(hdrs)
         except Exception:
             headers = None
 
-        # ASGI scope: bytes header pairs in scope['headers']
         if headers is None:
             try:
                 scope = getattr(candidate, "scope", None)
@@ -84,11 +125,13 @@ def _default_job_context_provider_from_transport(transport: TransportLayer):
             except Exception:
                 headers = None
 
-        # WSGI environ style: HTTP_-prefixed keys
         if headers is None and isinstance(candidate, dict):
             try:
-                # collect HTTP_* keys
-                headers = {k[5:].replace("_", "-").lower(): v for k, v in candidate.items() if k.startswith("HTTP_")}
+                headers = {
+                    k[5:].replace("_", "-").lower(): v
+                    for k, v in candidate.items()
+                    if k.startswith("HTTP_")
+                }
             except Exception:
                 headers = None
 
@@ -110,15 +153,21 @@ class JobPing:
         *,
         endpoint_proxy: EndpointProxy,
         job_context_provider: Callable[..., str | None] | None = None,
+        peer_id: str | None = None,
+        max_trace_depth: int = 10,
     ) -> None:
         self.endpoint_proxy = endpoint_proxy
         self.job_context_provider = job_context_provider or (lambda *args, **kwargs: None)
+        self.peer_id = peer_id or create_peer_id()
+        self._max_trace_depth = max_trace_depth
+
+    # ------------------------------------------------------------------
+    # wrap  (normal path — zero trace overhead)
+    # ------------------------------------------------------------------
 
     def wrap(
         self,
-    ) -> Callable[
-        [Callable[..., Awaitable[Result]]], Callable[..., Awaitable[Result | JobRef]]
-    ]:
+    ) -> Callable[[Callable[..., Awaitable[Result]]], Callable[..., Awaitable[Result | JobRef]]]:
         def decorator(
             wrapped_callable: Callable[..., Awaitable[Result]],
         ) -> Callable[..., Awaitable[Result | JobRef]]:
@@ -128,8 +177,26 @@ class JobPing:
                     return await wrapped_callable(*args, **kwargs)
 
                 job_id = self.job_context_provider(*args, **kwargs)
+                if job_id is None:
+                    return await wrapped_callable(*args, **kwargs)
 
-                if job_id is not None:
+                # Trace: active when wrap_trace set it, OR inherited via header.
+                trace_on = _trace_enabled.get()
+                if not trace_on:
+                    trace_on = _check_trace_header(*args, **kwargs)
+
+                if trace_on:
+                    token = _trace_enabled.set(True)
+                    t0 = time.monotonic()
+                    hop = _compute_hop(*args, **kwargs)
+                    self.endpoint_proxy._active_trace = {
+                        "job_id": job_id,
+                        "peer_id": self.peer_id,
+                        "hop": hop,
+                        "sub_jobs": [],
+                    }
+
+                try:
                     jp_item = self.endpoint_proxy.offer(job_id)
                     self.endpoint_proxy.defer(jp_item)
                     asyncio.create_task(
@@ -139,47 +206,125 @@ class JobPing:
                         ),
                     )
                     return self.endpoint_proxy.make_job_ref(job_id)
-
-                return await wrapped_callable(*args, **kwargs)
+                finally:
+                    if trace_on:
+                        self.endpoint_proxy._active_trace["elapsed"] = time.monotonic() - t0
+                        _trace_enabled.reset(token)
 
             return wrapper
 
         return decorator
 
+    # ------------------------------------------------------------------
+    # wrap_trace  (debug / diagnostic path)
+    # ------------------------------------------------------------------
+
+    def wrap_trace(
+        self,
+    ) -> Callable[[Callable[..., Awaitable[Result]]], Callable[..., Awaitable[Result | JobRef]]]:
+        def decorator(
+            wrapped_callable: Callable[..., Awaitable[Result]],
+        ) -> Callable[..., Awaitable[Result | JobRef]]:
+            @wraps(wrapped_callable)
+            async def wrapper(*args: Any, **kwargs: Any) -> Result | JobRef:
+                if is_jobping_disabled():
+                    return await wrapped_callable(*args, **kwargs)
+
+                job_id = self.job_context_provider(*args, **kwargs)
+                if job_id is None:
+                    return await wrapped_callable(*args, **kwargs)
+
+                token = _trace_enabled.set(True)
+                t0 = time.monotonic()
+                self.endpoint_proxy._active_trace = {
+                    "job_id": job_id,
+                    "peer_id": self.peer_id,
+                    "hop": 1,
+                    "sub_jobs": [],
+                }
+
+                try:
+                    jp_item = self.endpoint_proxy.offer(job_id)
+                    self.endpoint_proxy.defer(jp_item)
+                    asyncio.create_task(
+                        self.endpoint_proxy.fulfill_later(
+                            job_id,
+                            lambda: wrapped_callable(*args, **kwargs),
+                        ),
+                    )
+                    return self.endpoint_proxy.make_job_ref(job_id)
+                finally:
+                    self.endpoint_proxy._active_trace["elapsed"] = time.monotonic() - t0
+                    _trace_enabled.reset(token)
+
+            return wrapper
+
+        return decorator
+
+
 JobPingClass = JobPing
 
 
+# ------------------------------------------------------------------
+# factory
+# ------------------------------------------------------------------
+
 def create_jobping(
+    broker_port: int,
     *,
-    status_transport_layer: TransportLayer = DEFAULT_STATUS_TRANSPORT,
-    result_transport_layer: TransportLayer = DEFAULT_RESULT_TRANSPORT,
-    queue: Any = DEFAULT_QUEUE,
+    peer_brokers: list[str] | None = None,
+    idle_timeout_seconds: int | None = 300,
+    max_trace_depth: int = 10,
     job_context_provider: Callable[..., str | None] | None = None,
+    sio_kwargs: dict[str, Any] | None = None,
 ) -> JobPing:
-    """Create a JobPing instance.
+    """Create a JobPing instance with an embedded broker.
 
     Parameters:
-    - status_transport_layer: used for StateSync (defaults to a TransportLayerWS
-      pointed at JOBPING_WS_URL).
-    - result_transport_layer: used for ResultHandoff (defaults to a
-      TransportLayerHTTPS pointed at JOBPING_HTTP_BASE).
-    - queue: JPItem queue implementation (required).
-    - job_context_provider: optional callable to extract job_id from call args.
+        broker_port: TCP port for the embedded Socket.IO broker (required).
+        peer_brokers: URLs of other peers' brokers to connect to.
+        idle_timeout_seconds: Per-remote-connection idle timeout (None = never).
+        max_trace_depth: Maximum nesting depth for trace collection.
+        job_context_provider: Optional callable to extract job_id from call args.
+        sio_kwargs: Extra keyword arguments passed to the Socket.IO server.
     """
+    from jobping.imp.envelope_endpoint_inmemory import EnvelopeEndpointInMemory
+    from jobping.jpitem_queue import JPItemQueueInMemory
 
-    # If no job_context_provider is given, use a default tied to the
-    # status_transport_layer to attempt extracting job_id from incoming
-    # request-like objects (headers/scope). This aligns job context
-    # detection with the StatusSync transport.
+    # 1. Embedded broker
+    broker = EmbeddedBroker(broker_port, **(sio_kwargs or {}))
+
+    # 2. Local fast path
+    local_transport = LocalTransportLayer(broker)
+
+    # 3. Remote connections
+    transports: list[TransportLayer] = [local_transport]
+    for url in (peer_brokers or []):
+        transports.append(TransportLayerWS(url, idle_timeout_seconds=idle_timeout_seconds))
+
+    # 4. Composite (only when needed)
+    if len(transports) == 1:
+        transport = transports[0]
+    else:
+        transport = CompositeTransportLayer(transports)
+
+    # 5. Job context provider
     if job_context_provider is None:
-        job_context_provider = _default_job_context_provider_from_transport(status_transport_layer)
+        job_context_provider = _default_job_context_provider_from_transport(transport)
 
+    # 6. EndpointProxy
+    queue = JPItemQueueInMemory(EnvelopeEndpointInMemory())
     endpoint_proxy = EndpointProxy(
-        state_sync=StateSync(status_transport_layer),
-        result_handoff=ResultHandoff(result_transport_layer),
+        state_sync=StateSync(transport),
+        result_handoff=ResultHandoff(transport),
         queue=queue,
+        max_trace_depth=max_trace_depth,
     )
+    endpoint_proxy._active_trace = None  # set by wrap/wrap_trace
+
     return JobPing(
         endpoint_proxy=endpoint_proxy,
         job_context_provider=job_context_provider,
+        peer_id=create_peer_id(),
+        max_trace_depth=max_trace_depth,
     )

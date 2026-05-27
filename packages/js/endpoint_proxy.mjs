@@ -16,12 +16,21 @@ function requireMethod(value, method, owner) {
   }
 }
 
+function limitTraceDepth(subJobs, maxDepth) {
+  if (maxDepth <= 0) return [{ _truncated: true }];
+  return subJobs.map((sj) => ({
+    ...sj,
+    sub_jobs: limitTraceDepth(sj.sub_jobs || [], maxDepth - 1),
+  }));
+}
+
 export class EndpointProxy {
   constructor({
     stateSync,
     resultHandoff,
     queue,
     createJobId = defaultCreateJobId,
+    maxTraceDepth = 10,
   }) {
     requireMethod(stateSync, "publish", "EndpointProxy stateSync");
     requireMethod(stateSync, "waitFor", "EndpointProxy stateSync");
@@ -36,6 +45,9 @@ export class EndpointProxy {
     this.resultHandoff = resultHandoff;
     this.queue = queue;
     this.createJobIdFn = createJobId;
+    this.maxTraceDepth = maxTraceDepth;
+    this._activeTrace = null;   // set by JobPing wrap/wrap_trace
+    this._subTraces = [];       // accumulated from nested awaitResult calls
   }
 
   createJobId() {
@@ -92,7 +104,14 @@ export class EndpointProxy {
 
     item.status = JPITEM_COMPLETED;
     item.result = result;
-    this.resultHandoff.fulfill(jobId, result);
+
+    let trace = null;
+    if (this._activeTrace) {
+      trace = { ...this._activeTrace };
+      trace.sub_jobs = limitTraceDepth(this._subTraces, this.maxTraceDepth);
+      this._subTraces = [];
+    }
+    this.resultHandoff.fulfill(jobId, result, { trace });
     return item;
   }
 

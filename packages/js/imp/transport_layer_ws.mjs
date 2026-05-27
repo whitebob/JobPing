@@ -62,7 +62,7 @@ class Mailbox {
 }
 
 export class TransportLayerWS extends TransportLayer {
-  constructor({ url, opts } = {}) {
+  constructor({ url, opts, idleTimeoutSeconds } = {}) {
     super();
     if (!io) {
       throw new Error("socket.io-client must be installed to use TransportLayerWS");
@@ -72,6 +72,9 @@ export class TransportLayerWS extends TransportLayer {
     this.socket = io.io(url, opts);
     this._messageMailbox = new Mailbox();
     this._envelopeMailbox = new Mailbox();
+    this._idleTimeout = idleTimeoutSeconds || null;
+    this._lastActivity = Date.now();
+    this._idleTimer = null;
 
     this.socket.on("jobping:envelope", (envelope) => {
       this._envelopeMailbox.put(envelope);
@@ -80,6 +83,29 @@ export class TransportLayerWS extends TransportLayer {
     this.socket.on("jobping:message", (message) => {
       this._messageMailbox.put(message);
     });
+  }
+
+  _touch() {
+    this._lastActivity = Date.now();
+  }
+
+  _startIdleWatcher() {
+    if (!this._idleTimeout || this._idleTimer) return;
+    this._idleTimer = setInterval(() => {
+      if (Date.now() - this._lastActivity > this._idleTimeout * 1000) {
+        this.disconnect();
+      }
+    }, (this._idleTimeout * 1000) / 2);
+  }
+
+  disconnect() {
+    if (this._idleTimer) {
+      clearInterval(this._idleTimer);
+      this._idleTimer = null;
+    }
+    if (this.socket) {
+      this.socket.disconnect();
+    }
   }
 
   attachJobId(carrier = {}, jobId) {
@@ -115,6 +141,7 @@ export class TransportLayerWS extends TransportLayer {
 
   sendEnvelope(envelope) {
     if (!this.socket) throw new Error("No socket configured");
+    this._touch();
     this.socket.emit("jobping:envelope", envelope);
   }
 
@@ -128,6 +155,7 @@ export class TransportLayerWS extends TransportLayer {
 
   sendMessage(message) {
     if (!this.socket) throw new Error("No socket configured");
+    this._touch();
     this.socket.emit("jobping:message", message);
   }
 

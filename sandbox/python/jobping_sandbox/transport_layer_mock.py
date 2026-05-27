@@ -10,7 +10,7 @@ from jobping.transport_layer import (
     TransportLayer,
     TransportMessage,
 )
-from jobping_sandbox.envelope_endpoint_mock import MockEnvelopeEndpoint
+from jobping.imp.envelope_endpoint_inmemory import EnvelopeEndpointInMemory as MockEnvelopeEndpoint
 
 
 @dataclass

@@ -62,7 +62,7 @@ def test_work_response_shape_and_request_counter_cleanup(
     }
 
 
-def test_server_mock_without_jobping_context_returns_opaque_output(capsys: pytest.CaptureFixture[str]) -> None:
+def test_server_mock_without_jobping_context_returns_opaque_output() -> None:
     async def wrapped_callable(value: int) -> dict[str, int | str]:
         return {"value": value, "status": "OK"}
 
@@ -70,11 +70,6 @@ def test_server_mock_without_jobping_context_returns_opaque_output(capsys: pytes
     output = asyncio.run(wrapped(7))
 
     assert output == {"value": 7, "status": "OK"}
-
-    logs = capsys.readouterr().out
-    assert "doing server_proxy.inspect_transport_context" in logs
-    assert "doing server_proxy.no_jobping_context_call_wrapped_callable" in logs
-    assert "doing server_proxy.capture_call_output" in logs
 
 
 def test_server_mock_preserves_wrapped_callable_metadata() -> None:

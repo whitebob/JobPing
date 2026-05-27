@@ -17,14 +17,17 @@ export class ResultHandoff {
     this.transportLayer = transportLayer;
   }
 
-  fulfill(jobId, result) {
+  fulfill(jobId, result, { trace = null } = {}) {
     assertValidJobId(jobId);
 
-    this.transportLayer.sendMessage({
+    const msg = {
       kind: JOBPING_RESULT_HANDOFF,
       job_id: jobId,
       data: boxResult(jobId, result),
-    });
+    };
+    if (trace) msg._trace = trace;
+
+    this.transportLayer.sendMessage(msg);
   }
 
   async awaitResult(jobId, { timeoutMs = 1000 } = {}) {

@@ -1,14 +1,4 @@
 // JobPing SDK — single-import namespace.
-//
-// Quick start (all defaults):
-//   import jp from "jobping";
-//   const jobping = jp.createJobPing();
-//
-// Custom transports or queue:
-//   const jobping = jp.createJobPing({
-//     transportLayer: new jp.TransportLayerWS({ url: "..." }),
-//     queue: new jp.JPItemQueueInMemory(new jp.EnvelopeEndpointInMemory()),
-//   });
 
 export { createJobPing, JobPing, JobPingClass, isJobPingDisabled } from "./jobping.mjs";
 export { EndpointProxy } from "./endpoint_proxy.mjs";
@@ -19,5 +9,9 @@ export { JPItemQueue, JPItemQueueInMemory } from "./jpitem_queue.mjs";
 export { EnvelopeEndpoint, EnvelopeEndpointInMemory } from "./envelope_endpoint.mjs";
 export { TransportLayerWS } from "./imp/transport_layer_ws.mjs";
 export { TransportLayerHTTPS } from "./imp/transport_layer_https.mjs";
+export { EmbeddedBroker } from "./imp/broker.mjs";
+export { LocalTransportLayer } from "./imp/transport_layer_local.mjs";
+export { CompositeTransportLayer } from "./imp/transport_layer_composite.mjs";
 export { boxResult, unboxResult, isEnvelope, isResultEnvelope } from "./envelope.mjs";
-export { createJobId } from "./id.mjs";
+export { createJobId, createPeerId } from "./id.mjs";
+export { parseTrace, TraceNode, TraceReport, findBottleneck } from "./trace.mjs";

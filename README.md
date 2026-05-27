@@ -36,15 +36,29 @@ Request arrives → handler returns a ticket (job_ref) → connection freed imme
 
 ```py
 from jobping import create_jobping
-jp = create_jobping()
+jp = create_jobping(broker_port=8900)
 ```
 
 ```js
 import * as jp from "jobping";
-const jobping = jp.createJobPing();
+const jobping = jp.createJobPing({ brokerPort: 8900 });
 ```
 
-No arguments needed. Defaults: WebSocket transport at `JOBPING_WS_URL` (default `http://127.0.0.1:8890`) and an in-memory queue. Set `JOBPING_WS_URL` to point at your broker.
+Every node runs its own embedded broker. `broker_port` is the TCP port for the local Socket.IO broker. To connect to peers, pass their broker URLs:
+
+```py
+jp = create_jobping(
+    broker_port=8900,
+    peer_brokers=["http://other-host:8890"],
+)
+```
+
+```js
+const jobping = jp.createJobPing({
+  brokerPort: 8900,
+  peerBrokers: ["http://other-host:8890"],
+});
+```
 
 ## Usage
 
@@ -97,6 +111,106 @@ JOBPING_DISABLED=1
 ```
 
 Or in JS: `globalThis.__JOBPING_DISABLED__ = true`. `wrap()` becomes a no-op — your callable runs exactly as it would without JobPing. Useful for A/B comparison without changing code.
+
+## Idle timeout
+
+WebSocket connections to peer brokers automatically disconnect after a period of inactivity, releasing resources when they're not needed. The connection re-establishes transparently on the next message.
+
+```py
+# Disconnect after 5 minutes of idle (default: 300 s)
+jp = create_jobping(broker_port=8900, idle_timeout_seconds=300)
+
+# Never disconnect
+jp = create_jobping(broker_port=8900, idle_timeout_seconds=None)
+```
+
+```js
+const jobping = jp.createJobPing({ brokerPort: 8900, idleTimeoutSeconds: 300 });
+```
+
+Every `send_message` call resets the idle timer. A background watcher checks at half the timeout interval and disconnects if no activity occurred. The disconnect is clean — the Socket.IO client closes gracefully and the watcher task cancels itself.
+
+Peers that disconnect are not removed from the routing table. When a message targets a disconnected peer, the broker reconnects on demand (via the `_ensure_connected` path).
+
+## Trace
+
+Trace lets you see exactly where time goes across a distributed call tree. It is **per-job** — you opt in for specific jobs without paying overhead on the rest. When a parent job has tracing enabled, child jobs inherit it automatically so you get the full picture.
+
+### Enabling trace
+
+Two ways to turn tracing on:
+
+| Method | When to use |
+|---|---|
+| `@jp.wrap_trace()` | You control the entry point. Trace always on for this handler. |
+| `@jp.wrap()` + `x-jobping-trace-enabled: 1` header | Downstream jobs inherit from an upstream trace. |
+
+**`wrap_trace()`** — explicit opt-in. Use this on the outermost handler where you want the trace to start:
+
+```py
+@app.get("/debug/work")
+@jp.wrap_trace()
+async def do_work(request: Request, request_id: int) -> dict:
+    ...
+```
+
+Every call through this handler records a trace, regardless of headers. The `hop` counter starts at 1.
+
+**`wrap()` with header** — inherited propagation. When a handler wrapped with `@jp.wrap()` receives `x-jobping-trace-enabled: 1` (or `true`), it activates tracing for that job and forwards the header to any nested JobPing calls. This is how a trace started at the edge propagates through the entire call tree:
+
+```
+Client (trace enabled)
+  → Service A  @jp.wrap()  + header → trace ON, hop=1
+    → Service B  @jp.wrap()  + header → trace ON, hop=2
+      → Service C  @jp.wrap()  no header → trace OFF (normal path)
+```
+
+The ContextVar that carries the trace flag is isolated per async task — two concurrent requests never interfere.
+
+### Reading trace data
+
+When a traced job completes, the trace payload is attached to the fulfill result. Use `parse_trace` to turn the raw dict into a structured report:
+
+```py
+from jobping.trace import parse_trace, find_bottleneck
+
+# Raw trace dict (attached to fulfill, stored however you like)
+raw_trace = {
+    "job_id": "abc123",
+    "peer_id": "api-gateway",
+    "hop": 1,
+    "elapsed": 2.5,
+    "sub_jobs": [
+        {"job_id": "def456", "peer_id": "worker-1", "hop": 2, "elapsed": 1.8, "sub_jobs": []},
+    ],
+}
+
+report = parse_trace(raw_trace)
+print(f"Total: {report.total_elapsed:.2f}s")
+print(f"Critical path: {' → '.join(n.peer_id for n in report.critical_path)}")
+print(find_bottleneck(report))
+# Bottleneck: worker-1 (job def456) — self_time=1.80s (72% of total 2.50s)
+```
+
+`TraceReport` fields:
+
+| Field | Description |
+|---|---|
+| `root` | Root `TraceNode` of the call tree |
+| `total_elapsed` | Wall-clock time for the entire traced job |
+| `critical_path` | Longest path from root to leaf (the chain you'd optimize first) |
+| `bottleneck` | Node with the largest self-time (`elapsed - sum(children)`) |
+| `call_graph` | Adjacency map: `job_id → [child_job_ids]` |
+
+`find_bottleneck(report)` returns a human-readable string. When one node dominates (>50% of total), it calls it out. Otherwise it reports "Balanced."
+
+### Trace depth limiting
+
+Nested traces can grow unbounded. `max_trace_depth` (default 10) caps the nesting. Subtrees beyond the limit are replaced with `{"_truncated": true}` — you know something was there, but the payload stays bounded.
+
+```py
+jp = create_jobping(broker_port=8900, max_trace_depth=5)
+```
 
 ## Benchmarks
 
@@ -159,17 +273,35 @@ Burst overlap pushes `max_active` to 954 — this is instantaneous peak overlap,
 
 ## Customization
 
-Pass explicit transports and queue to override defaults:
+`create_jobping` accepts these optional parameters:
 
 ```py
 jp = create_jobping(
-  status_transport_layer=my_ws_transport,
-  result_transport_layer=my_http_transport,
-  queue=my_queue,
+    broker_port=8900,
+    peer_brokers=["http://peer:8890"],   # other brokers to connect to
+    idle_timeout_seconds=300,            # auto-disconnect after idle (None = never)
+    max_trace_depth=10,                  # max nesting depth for trace payloads
+    job_context_provider=my_provider,    # custom job_id extraction from requests
+    sio_kwargs={"engineio_logger": True},
 )
 ```
 
-**Defaults:** `StateSync` uses WebSocket; `ResultHandoff` uses HTTP. The default queue is a shared module-level `JPItemQueueInMemory` — fine for development. Pass an explicit instance when you need per-instance isolation.
+**job_context_provider:** A callable `(*args, **kwargs) -> str | None` that extracts the job_id from incoming request arguments. The default inspects request headers for `x-jobping-job-id`. Return `None` to run the handler normally (no JobPing wrapping).
+
+**Advanced — construct directly:** When you need full control over transports and queues, construct `JobPing` manually:
+
+```py
+from jobping import JobPing, EndpointProxy, StateSync, ResultHandoff
+from jobping.imp import TransportLayerWS, JPItemQueueInMemory, EnvelopeEndpointInMemory
+
+transport = TransportLayerWS("http://broker:8890")
+endpoint_proxy = EndpointProxy(
+    state_sync=StateSync(transport),
+    result_handoff=ResultHandoff(transport),
+    queue=JPItemQueueInMemory(EnvelopeEndpointInMemory()),
+)
+jp = JobPing(endpoint_proxy=endpoint_proxy, job_context_provider=my_provider)
+```
 
 ## Design
 

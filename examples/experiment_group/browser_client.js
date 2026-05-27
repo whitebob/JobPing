@@ -37,12 +37,13 @@ async function runExperiment() {
     throw new Error("Sleep seconds must be a non-negative number.");
   }
 
-  const statusTransport = new jp.TransportLayerWS({ url: brokerUrl });
-  const jobping = jp.createJobPing({
-    transportLayer: statusTransport,
-    resultTransportLayer: statusTransport,
+  const transport = new jp.TransportLayerWS({ url: brokerUrl });
+  const endpointProxy = new jp.EndpointProxy({
+    stateSync: new jp.StateSync({ transportLayer: transport }),
+    resultHandoff: new jp.ResultHandoff({ transportLayer: transport }),
     queue: new jp.JPItemQueueInMemory(new jp.EnvelopeEndpointInMemory()),
   });
+  const jobping = new jp.JobPing({ endpointProxy });
 
   await fetchJson(`${serverUrl}/reset`, { method: "POST" });
 
@@ -67,7 +68,7 @@ async function runExperiment() {
   const elapsedSeconds = (performance.now() - startedAt) / 1000;
   const metrics = await fetchJson(`${serverUrl}/metrics`);
 
-  statusTransport.socket.disconnect();
+  transport.socket.disconnect();
 
   return {
     requestCount,

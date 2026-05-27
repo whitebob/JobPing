@@ -32,16 +32,18 @@ class ResultHandoff:
     def __init__(self, transport_layer: ResultHandoffTransport) -> None:
         self.transport_layer = transport_layer
 
-    def fulfill(self, job_id: str, result: Any) -> None:
+    def fulfill(self, job_id: str, result: Any, *, trace: dict | None = None) -> None:
         _assert_valid_job_id(job_id)
 
-        self.transport_layer.send_message(
-            {
-                "kind": JOBPING_RESULT_HANDOFF,
-                "job_id": job_id,
-                "data": box_result(job_id, result),
-            },
-        )
+        msg: dict = {
+            "kind": JOBPING_RESULT_HANDOFF,
+            "job_id": job_id,
+            "data": box_result(job_id, result),
+        }
+        if trace is not None:
+            msg["_trace"] = trace
+
+        self.transport_layer.send_message(msg)
 
     async def await_result(
         self,
