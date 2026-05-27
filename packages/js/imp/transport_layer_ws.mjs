@@ -77,12 +77,16 @@ export class TransportLayerWS extends TransportLayer {
     this._idleTimer = null;
 
     this.socket.on("jobping:envelope", (envelope) => {
+      this._touch();
       this._envelopeMailbox.put(envelope);
     });
 
     this.socket.on("jobping:message", (message) => {
+      this._touch();
       this._messageMailbox.put(message);
     });
+
+    this._startIdleWatcher();
   }
 
   _touch() {
@@ -146,6 +150,7 @@ export class TransportLayerWS extends TransportLayer {
   }
 
   recvEnvelope({ jobId, type, timeout, timeoutMs = 1000 } = {}) {
+    this._touch();
     const matches = (envelope) =>
       (jobId == null || envelope.job_id === jobId) &&
       (type == null || envelope.type === type);
@@ -160,6 +165,7 @@ export class TransportLayerWS extends TransportLayer {
   }
 
   recvMessage({ kind, jobId, timeout, timeoutMs = 1000 } = {}) {
+    this._touch();
     const matches = (message) =>
       typeof message === "object" &&
       message !== null &&

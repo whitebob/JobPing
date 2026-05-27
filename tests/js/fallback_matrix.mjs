@@ -4,6 +4,60 @@ import { spawn } from "node:child_process";
 const PYTHON = ".venv/bin/python";
 const REQUEST_COUNT = 3;
 const SLEEP_SECONDS = 0.05;
+const BROKER_PORT = 8890;
+
+let brokerProcess;
+
+function startBroker() {
+  return new Promise((resolve, reject) => {
+    brokerProcess = spawn(
+      process.execPath,
+      ["examples/experiment_group/socket_broker.mjs"],
+      {
+        env: { ...process.env, SOCKET_BROKER_PORT: String(BROKER_PORT) },
+        stdio: ["ignore", "pipe", "pipe"],
+      },
+    );
+
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        reject(new Error("Broker did not start within 5 seconds"));
+      }
+    }, 5000);
+
+    brokerProcess.stdout.on("data", (chunk) => {
+      if (!settled && chunk.toString().includes("listening")) {
+        settled = true;
+        clearTimeout(timer);
+        resolve();
+      }
+    });
+
+    brokerProcess.stderr.on("data", (chunk) => {
+      if (!settled) {
+        settled = true;
+        clearTimeout(timer);
+        reject(new Error(`Broker start error: ${chunk}`));
+      }
+    });
+
+    brokerProcess.on("exit", (code) => {
+      if (!settled) {
+        settled = true;
+        clearTimeout(timer);
+        reject(new Error(`Broker exited early with code ${code}`));
+      }
+    });
+  });
+}
+
+function stopBroker() {
+  if (brokerProcess && brokerProcess.exitCode === null && brokerProcess.signalCode === null) {
+    brokerProcess.kill("SIGTERM");
+  }
+}
 
 const servers = [
   {
@@ -217,6 +271,7 @@ const runningServers = servers.map(startServer);
 
 try {
   await Promise.all(runningServers.map(waitForServer));
+  await startBroker();
 
   for (const server of runningServers) {
     for (const client of clients) {
@@ -231,5 +286,6 @@ try {
     console.log(`PASS ${server.name} /work response shape and active request cleanup`);
   }
 } finally {
+  stopBroker();
   await Promise.all(runningServers.map(stopServer));
 }

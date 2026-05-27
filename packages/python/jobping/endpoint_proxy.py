@@ -132,6 +132,7 @@ class EndpointProxy:
             return result
         except BaseException:
             self._active_trace = None
+            self._sub_traces = []
             raise
 
     async def await_result(

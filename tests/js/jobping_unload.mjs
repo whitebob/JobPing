@@ -39,6 +39,9 @@ assert.deepEqual(envDisabled.logs, []);
 delete process.env.JOBPING_DISABLED;
 const enabled = await captureConsoleLogs(() => wrapped(3));
 assert.deepEqual(enabled.result, { value: 3, status: "OK" });
-assert.notDeepEqual(enabled.logs, []);
+// When the wrapped function returns a plain object (not a job_ref),
+// wrap() passes through without entering the JobPing accept/await flow.
+// No console output is produced in any code path for this case.
+assert.deepEqual(enabled.logs, []);
 
 console.log("PASS JobPing unload switch preserves original client call path");

@@ -12,12 +12,6 @@ export class EmbeddedBroker {
   constructor(port, sioOpts = {}) {
     this.port = port;
 
-    // --- in-process queues for the local client ---
-    this._localMsgQueue = [];
-    this._localEnvQueue = [];
-    this._localMsgWaiters = [];
-    this._localEnvWaiters = [];
-
     // --- routing table: job_id → peer_id ---
     this._jobRoutes = new Map();
 

@@ -121,9 +121,15 @@ export class EndpointProxy {
       throw new Error("fulfillLater requires a task function");
     }
 
-    const result = await task();
-    this.fulfill(jobId, result);
-    return result;
+    try {
+      const result = await task();
+      this.fulfill(jobId, result);
+      return result;
+    } catch (e) {
+      this._activeTrace = null;
+      this._subTraces = [];
+      throw e;
+    }
   }
 
   async awaitResult(jobId, options = {}) {
