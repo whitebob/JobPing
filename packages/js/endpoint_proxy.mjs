@@ -110,6 +110,7 @@ export class EndpointProxy {
       trace = { ...this._activeTrace };
       trace.sub_jobs = limitTraceDepth(this._subTraces, this.maxTraceDepth);
       this._subTraces = [];
+      this._activeTrace = null;
     }
     this.resultHandoff.fulfill(jobId, result, { trace });
     return item;

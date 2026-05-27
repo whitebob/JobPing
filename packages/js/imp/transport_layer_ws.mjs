@@ -96,8 +96,13 @@ export class TransportLayerWS extends TransportLayer {
   _startIdleWatcher() {
     if (!this._idleTimeout || this._idleTimer) return;
     this._idleTimer = setInterval(() => {
-      if (Date.now() - this._lastActivity > this._idleTimeout * 1000) {
-        this.disconnect();
+      try {
+        if (Date.now() - this._lastActivity > this._idleTimeout * 1000) {
+          this.disconnect();
+        }
+      } catch {
+        clearInterval(this._idleTimer);
+        this._idleTimer = null;
       }
     }, (this._idleTimeout * 1000) / 2);
   }
@@ -109,6 +114,7 @@ export class TransportLayerWS extends TransportLayer {
     }
     if (this.socket) {
       this.socket.disconnect();
+      this.socket = null;
     }
   }
 

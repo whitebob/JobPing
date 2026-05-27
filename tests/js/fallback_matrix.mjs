@@ -20,10 +20,12 @@ function startBroker() {
     );
 
     let settled = false;
+    let stderr = "";
     const timer = setTimeout(() => {
       if (!settled) {
         settled = true;
-        reject(new Error("Broker did not start within 5 seconds"));
+        const detail = stderr ? ` (stderr: ${stderr})` : "";
+        reject(new Error(`Broker did not start within 5 seconds${detail}`));
       }
     }, 5000);
 
@@ -36,27 +38,34 @@ function startBroker() {
     });
 
     brokerProcess.stderr.on("data", (chunk) => {
-      if (!settled) {
-        settled = true;
-        clearTimeout(timer);
-        reject(new Error(`Broker start error: ${chunk}`));
-      }
+      stderr += chunk.toString();
     });
 
     brokerProcess.on("exit", (code) => {
       if (!settled) {
         settled = true;
         clearTimeout(timer);
-        reject(new Error(`Broker exited early with code ${code}`));
+        const detail = stderr ? ` (stderr: ${stderr})` : "";
+        reject(new Error(`Broker exited early with code ${code}${detail}`));
       }
     });
   });
 }
 
-function stopBroker() {
-  if (brokerProcess && brokerProcess.exitCode === null && brokerProcess.signalCode === null) {
-    brokerProcess.kill("SIGTERM");
+async function stopBroker() {
+  if (!brokerProcess || brokerProcess.exitCode !== null || brokerProcess.signalCode !== null) {
+    return;
   }
+
+  await new Promise((resolve) => {
+    brokerProcess.once("exit", resolve);
+    brokerProcess.kill("SIGTERM");
+    setTimeout(() => {
+      if (brokerProcess.exitCode === null && brokerProcess.signalCode === null) {
+        brokerProcess.kill("SIGKILL");
+      }
+    }, 1000).unref();
+  });
 }
 
 const servers = [
@@ -286,6 +295,6 @@ try {
     console.log(`PASS ${server.name} /work response shape and active request cleanup`);
   }
 } finally {
-  stopBroker();
   await Promise.all(runningServers.map(stopServer));
+  await stopBroker();
 }
