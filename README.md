@@ -337,4 +337,4 @@ jp = JobPing(endpoint_proxy=endpoint_proxy, job_context_provider=my_provider)
 
 ## License
 
-See repository files.
+Apache License 2.0 — see [LICENSE](LICENSE).
