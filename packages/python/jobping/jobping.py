@@ -160,6 +160,12 @@ class JobPing:
         self.job_context_provider = job_context_provider or (lambda *args, **kwargs: None)
         self.peer_id = peer_id or create_peer_id()
         self._max_trace_depth = max_trace_depth
+        self._broker = None  # set by create_jobping
+
+    async def start_broker(self) -> None:
+        """Start the embedded broker if one was created by the factory."""
+        if self._broker is not None:
+            await self._broker.start()
 
     # ------------------------------------------------------------------
     # wrap  (normal path — zero trace overhead)
@@ -322,9 +328,11 @@ def create_jobping(
     )
     endpoint_proxy._active_trace = None  # set by wrap/wrap_trace
 
-    return JobPing(
+    jp = JobPing(
         endpoint_proxy=endpoint_proxy,
         job_context_provider=job_context_provider,
         peer_id=create_peer_id(),
         max_trace_depth=max_trace_depth,
     )
+    jp._broker = broker
+    return jp

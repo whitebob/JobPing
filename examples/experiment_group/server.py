@@ -28,6 +28,11 @@ jp = create_jobping(
 
 app = FastAPI(title="JobPing experiment group")
 
+
+@app.on_event("startup")
+async def startup_broker():
+    await jp.start_broker()
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],

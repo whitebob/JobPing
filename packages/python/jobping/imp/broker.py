@@ -106,35 +106,33 @@ class EmbeddedBroker:
         # deliver locally
         self._deliver_local_message(msg)
         # deliver to every remote socket
-        for sid, sio_socket in list(self._remote_sockets.items()):
+        for sid in list(self._remote_sockets):
             try:
-                await sio_socket.emit("jobping:message", msg)
+                await self._sio_server.emit("jobping:message", msg, to=sid)
             except Exception:
                 pass
 
     async def _broadcast_envelope(self, env: dict) -> None:
         self._deliver_local_envelope(env)
-        for sid, sio_socket in list(self._remote_sockets.items()):
+        for sid in list(self._remote_sockets):
             try:
-                await sio_socket.emit("jobping:envelope", env)
+                await self._sio_server.emit("jobping:envelope", env, to=sid)
             except Exception:
                 pass
 
     async def _unicast_remote_message(self, target_peer_id: str, msg: dict) -> None:
-        sio_socket = self._remote_sockets.get(target_peer_id)
-        if sio_socket is not None:
+        if target_peer_id in self._remote_sockets:
             try:
-                await sio_socket.emit("jobping:message", msg)
+                await self._sio_server.emit("jobping:message", msg, to=target_peer_id)
             except Exception:
                 pass
         else:
             self._deliver_local_message(msg)  # fallback
 
     async def _unicast_remote_envelope(self, target_peer_id: str, env: dict) -> None:
-        sio_socket = self._remote_sockets.get(target_peer_id)
-        if sio_socket is not None:
+        if target_peer_id in self._remote_sockets:
             try:
-                await sio_socket.emit("jobping:envelope", env)
+                await self._sio_server.emit("jobping:envelope", env, to=target_peer_id)
             except Exception:
                 pass
         else:
@@ -158,7 +156,8 @@ class EmbeddedBroker:
             ) from exc
 
         self._sio_server = socketio.AsyncServer(**self._sio_kwargs)
-        self._sio_server.on("connection", self._on_remote_connect)
+        self._sio_server.on("connect", self._on_remote_connect)
+        self._sio_server.on("disconnect", self._on_remote_disconnect)
         self._sio_server.on("jobping:message", self._on_remote_message)
         self._sio_server.on("jobping:envelope", self._on_remote_envelope)
 
@@ -179,7 +178,11 @@ class EmbeddedBroker:
 
     async def _on_remote_connect(self, sid: str, environ: dict) -> None:
         """Register a remote peer connection."""
-        self._remote_sockets[sid] = sid  # store sid; socket is accessed via sio_server
+        self._remote_sockets[sid] = True
+
+    async def _on_remote_disconnect(self, sid: str) -> None:
+        """Remove a disconnected remote peer."""
+        self._remote_sockets.pop(sid, None)
 
     async def _on_remote_message(self, sid: str, data: dict) -> None:
         """Handle incoming message from a remote peer."""
