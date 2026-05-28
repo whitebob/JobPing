@@ -1,3 +1,5 @@
+from jobping._lazy_singleton import jp, _LazyJobPing
+from jobping.composite_endpoint_proxy import CompositeEndpointProxy
 from jobping.endpoint_proxy import EndpointProxy
 from jobping.result_handoff import ResultHandoff
 from jobping.jobping import JobPing, JobPingClass, create_jobping
@@ -11,6 +13,9 @@ from jobping.imp.transport_layer_composite import CompositeTransportLayer
 from jobping.trace import parse_trace, TraceNode, TraceReport, find_bottleneck
 
 __all__ = [
+    "jp",
+    "_LazyJobPing",
+    "CompositeEndpointProxy",
     "EndpointProxy",
     "JobPing",
     "JobPingClass",

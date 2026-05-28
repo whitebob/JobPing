@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
@@ -24,10 +25,14 @@ class EnvelopeEndpointInMemory:
     def __init__(self) -> None:
         self._pending: list[JobPingEnvelope] = []
         self._waiters: list[_Waiter] = []
+        self._on_intercept: Callable[[JobPingEnvelope], bool] | None = None
 
     def send(self, envelope: JobPingEnvelope) -> None:
         if not is_envelope(envelope):
             raise ValueError("Can only send JobPing envelopes")
+
+        if self._on_intercept is not None and self._on_intercept(envelope):
+            return
 
         for index, waiter in enumerate(self._waiters):
             if self._matches(envelope, waiter.job_id, waiter.type):
