@@ -1,6 +1,6 @@
 {
   "name": "jobping",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Endpoint rendezvous bridge for JPItem state synchronization and result handoff",
   "type": "module",
   "main": "./index.mjs",
