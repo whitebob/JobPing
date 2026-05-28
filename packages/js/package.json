@@ -13,6 +13,7 @@
     "index.mjs",
     "defaults.mjs",
     "jobping.mjs",
+    "jobping_core.mjs",
     "endpoint_proxy.mjs",
     "state_sync.mjs",
     "result_handoff.mjs",
@@ -23,10 +24,14 @@
     "id.mjs",
     "id_browser.mjs",
     "browser_entry.mjs",
-    "imp/"
+    "browser_entry_min.mjs",
+    "imp/",
+    "dist/"
   ],
   "scripts": {
-    "build:browser": "node ../../scripts/build_browser_bundle.mjs"
+    "build": "node ../../scripts/build_browser_bundle.mjs",
+    "build:browser": "node ../../scripts/build_browser_bundle.mjs",
+    "prepublishOnly": "node ../../scripts/build_browser_bundle.mjs"
   },
   "dependencies": {
     "socket.io-client": "^4.8.0"
