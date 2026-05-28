@@ -14,13 +14,13 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, FileResponse
 
-from jobping import create_jobping
+from jobping import jp
 import os
 
 BROKER_PORT = int(os.environ.get("BROKER_PORT", "8900"))
 BROKER_URL = os.environ.get("BROKER_URL", os.environ.get("JOBPING_WS_URL", "http://127.0.0.1:8890"))
 
-jp = create_jobping(
+jp.configure(
     broker_port=BROKER_PORT,
     peer_brokers=[BROKER_URL],
 )
