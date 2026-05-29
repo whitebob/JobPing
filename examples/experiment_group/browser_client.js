@@ -38,12 +38,8 @@ async function runExperiment() {
   }
 
   const transport = new jp.TransportLayerWS({ url: brokerUrl });
-  const endpointProxy = new jp.EndpointProxy({
-    stateSync: new jp.StateSync({ transportLayer: transport }),
-    resultHandoff: new jp.ResultHandoff({ transportLayer: transport }),
-    queue: new jp.JPItemQueueInMemory(new jp.EnvelopeEndpointInMemory()),
-  });
-  const jobping = new jp.JobPing({ endpointProxy });
+  const queue = new jp.JPItemQueueInMemory(new jp.EnvelopeEndpointInMemory());
+  const jobping = jp.createJobPing({ transportLayer: transport, queue });
 
   await fetchJson(`${serverUrl}/reset`, { method: "POST" });
 

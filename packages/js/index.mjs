@@ -15,3 +15,4 @@ export { CompositeTransportLayer } from "./imp/transport_layer_composite.mjs";
 export { boxResult, unboxResult, isEnvelope, isResultEnvelope } from "./envelope.mjs";
 export { createJobId, createPeerId } from "./id.mjs";
 export { parseTrace, TraceNode, TraceReport, findBottleneck } from "./trace.mjs";
+export { jp, LazyJobPing } from "./lazy_singleton.mjs";

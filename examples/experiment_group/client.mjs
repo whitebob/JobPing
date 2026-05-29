@@ -6,7 +6,7 @@
 
 import { performance } from "node:perf_hooks";
 
-import * as jp from "../../packages/js/index.mjs";
+import { jp } from "../../packages/js/index.mjs";
 
 const brokerUrl = (() => {
   const prefix = `--brokerUrl=`;
@@ -14,13 +14,7 @@ const brokerUrl = (() => {
   return value ? value.slice(prefix.length) : "http://127.0.0.1:8890";
 })();
 
-const transport = new jp.TransportLayerWS({ url: brokerUrl });
-const endpointProxy = new jp.EndpointProxy({
-  stateSync: new jp.StateSync({ transportLayer: transport }),
-  resultHandoff: new jp.ResultHandoff({ transportLayer: transport }),
-  queue: new jp.JPItemQueueInMemory(new jp.EnvelopeEndpointInMemory()),
-});
-const jobping = new jp.JobPing({ endpointProxy });
+jp.configure({ brokerPort: 0, peerBrokers: [brokerUrl] });
 
 function readOption(name, fallback) {
   const prefix = `--${name}=`;
@@ -55,7 +49,7 @@ async function fetchJson(url, options) {
   return response.json();
 }
 
-const runOneRequest = jobping.wrap(async function runOneRequest(requestId) {
+const runOneRequest = jp.wrapClient(async function runOneRequest(requestId) {
   const params = new URLSearchParams({
     request_id: String(requestId),
     sleep_seconds: String(sleepSeconds),
@@ -101,18 +95,7 @@ try {
   process.exitCode = 1;
 }
 
-// Ensure transport socket is closed so Node can exit cleanly when the client
-// finishes. Disconnect the socket and exit with the captured exit code.
-try {
-  if (typeof transport !== 'undefined' && transport && typeof transport.disconnect === 'function') {
-    transport.disconnect();
-  }
-} catch (e) {
-  // ignore
-}
-
-// Give the socket a brief moment to flush then exit.
+// Allow pending I/O to flush, then exit cleanly.
 setTimeout(() => {
-  // eslint-disable-next-line no-process-exit
   process.exit(process.exitCode || 0);
 }, 50);

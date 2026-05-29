@@ -1,7 +1,7 @@
 import http from 'node:http';
 import { URL } from 'node:url';
 
-import * as jp from '../../packages/js/index.mjs';
+import { jp } from '../../packages/js/index.mjs';
 
 class RequestCounter {
   constructor() {
@@ -37,20 +37,17 @@ function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-// Setup JobPing endpoint proxy backed by in-memory queue + WS transport to broker
 const BROKER_URL = process.env.BROKER_URL || 'http://127.0.0.1:8890';
-let transport;
-try {
-  transport = new jp.TransportLayerWS({ url: BROKER_URL });
-} catch (e) {
-  console.error('Failed to create jp.TransportLayerWS, is socket.io-client installed?', e);
-  process.exit(1);
-}
 
-const endpointProxy = new jp.EndpointProxy({
-  stateSync: new jp.StateSync({ transportLayer: transport }),
-  resultHandoff: new jp.ResultHandoff({ transportLayer: transport }),
-  queue: new jp.JPItemQueueInMemory(new jp.EnvelopeEndpointInMemory()),
+jp.configure({ brokerPort: 0, peerBrokers: [BROKER_URL] });
+
+// Server-side wrap: if the request carries a job-id header the handler is
+// deferred and a job_ref is returned immediately; otherwise it runs inline.
+const doWork = jp.wrap(async (req, request_id, sleep_seconds) => {
+  const started = Date.now();
+  await sleep(Math.max(0, Math.floor(sleep_seconds * 1000)));
+  const elapsed = (Date.now() - started) / 1000;
+  return { request_id, status: 'OK', sleep_seconds, elapsed_seconds: elapsed };
 });
 
 function setCors(res) {
@@ -74,37 +71,9 @@ const server = http.createServer(async (req, res) => {
       const request_id = Number(url.searchParams.get('request_id')) || 0;
       const sleep_seconds = Number(url.searchParams.get('sleep_seconds')) || 1;
 
-      // detect jobping header
-      const jobHeader = req.headers[jp.JOBPING_JOB_ID_HEADER] || req.headers[jp.JOBPING_JOB_ID_HEADER.toLowerCase()];
-      if (jobHeader) {
-        const jobId = String(jobHeader);
-        // Offer, defer and fulfill later
-        endpointProxy.offer(jobId);
-        endpointProxy.defer(jobId);
-        endpointProxy.fulfillLater(jobId, async () => {
-          const started = Date.now();
-          await sleep(Math.max(0, Math.floor(sleep_seconds * 1000)));
-          const elapsed = (Date.now() - started) / 1000;
-          return { request_id, status: 'OK', sleep_seconds, elapsed_seconds: elapsed };
-        }).catch((e) => {
-          console.error('fulfillLater error', e);
-        });
-        counter.request_started();
-        // Return job ref immediately
-        const body = JSON.stringify(endpointProxy.makeJobRef(jobId));
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(body);
-        counter.request_finished();
-        return;
-      }
-
-      // No jobping header: behave like control
       counter.request_started();
       try {
-        const started = Date.now();
-        await sleep(Math.max(0, Math.floor(sleep_seconds * 1000)));
-        const elapsed = (Date.now() - started) / 1000;
-        const body = JSON.stringify({ request_id, status: 'OK', sleep_seconds, elapsed_seconds: elapsed });
+        const body = JSON.stringify(await doWork(req, request_id, sleep_seconds));
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(body);
       } finally {
@@ -135,6 +104,7 @@ const server = http.createServer(async (req, res) => {
 });
 
 const PORT = Number(process.env.PORT || 8887);
+await jp.startBroker();
 server.listen(PORT, '127.0.0.1', () => {
   console.log(`node experiment server listening on http://127.0.0.1:${PORT} broker=${BROKER_URL}`);
 });

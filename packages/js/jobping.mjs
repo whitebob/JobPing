@@ -18,22 +18,30 @@ import { createPeerId } from "./id.mjs";
 
 export { JobPing, JobPingClass, isJobPingDisabled };
 
-export function createJobPing({
+// Internal factory: builds the full stack but does NOT start the broker.
+// Returns { endpointProxy, broker, jobping } so the caller (singleton or
+// public createJobPing) decides when / whether to start listening.
+export function _createJobPing({
   brokerPort,
   peerBrokers = null,
   idleTimeoutSeconds = 300,
   maxTraceDepth = 10,
   sioOpts = {},
 } = {}) {
+  // Env-var fallback
   if (brokerPort == null) {
-    throw new Error("createJobPing requires a brokerPort");
+    const envPort = process.env.JOBPING_BROKER_PORT;
+    brokerPort = envPort ? parseInt(envPort, 10) : 0;
+  }
+  if (peerBrokers == null) {
+    const envPeers = process.env.JOBPING_PEER_BROKERS;
+    if (envPeers) {
+      peerBrokers = envPeers.split(",").map((s) => s.trim()).filter(Boolean);
+    }
   }
 
-  // 1. Embedded broker
+  // 1. Embedded broker (not started yet)
   const broker = new EmbeddedBroker(brokerPort, sioOpts);
-  broker.start().catch((err) => {
-    console.error("EmbeddedBroker failed to start:", err);
-  });
 
   // 2. Local fast path
   const localTransport = new LocalTransportLayer(broker);
@@ -61,9 +69,20 @@ export function createJobPing({
   });
   endpointProxy._activeTrace = null;
 
-  return new JobPing({
+  const jobping = new JobPing({
     endpointProxy,
     peerId: createPeerId(),
     maxTraceDepth,
   });
+  jobping._broker = broker;
+
+  return { endpointProxy, broker, jobping };
+}
+
+export function createJobPing(opts = {}) {
+  const { jobping, broker } = _createJobPing(opts);
+  broker.start().catch((err) => {
+    console.error("EmbeddedBroker failed to start:", err);
+  });
+  return jobping;
 }
