@@ -18,22 +18,14 @@ BROKER_URL = os.environ.get("BROKER_URL", "http://127.0.0.1:8890")
 jp.configure(broker_port=0, peer_brokers=[BROKER_URL])
 
 
+@jp.unwrap()
 async def run_one(client: httpx.AsyncClient, request_id: int) -> dict:
     job_id = str(uuid.uuid4())
     headers = {"x-jobping-job-id": job_id}
     params = {"request_id": str(request_id), "sleep_seconds": str(SLEEP)}
     r = await client.get(f"{SERVER_URL}/work", params=params, headers=headers, timeout=None)
     r.raise_for_status()
-    data = r.json()
-
-    endpoint_proxy = jp.currentActive()
-    if isinstance(data, dict) and data.get("jobping") == "jobping.job_ref.v1":
-        endpoint_proxy.accept(job_id)
-        completed = await endpoint_proxy.await_result(job_id, timeout=30.0)
-        endpoint_proxy.release(job_id)
-        return completed
-    else:
-        return data
+    return r.json()
 
 
 async def main():

@@ -103,9 +103,10 @@ class _LazyJobPing:
     Import-time: lightweight shell, no broker, no port binding.
     First ``wrap()`` or ``start_broker()`` triggers internal factory.
 
-    Public verbs (only three):
+    Public verbs (only four):
       - ``configure(...)`` — store build params (sync, never builds)
-      - ``wrap()`` — decorate a handler with JobPing capability
+      - ``wrap()`` — decorate a server handler with JobPing capability
+      - ``unwrap()`` — decorate a client callable to resolve JobRefs
       - ``start_broker()`` — warm up the broker
     """
 
@@ -274,6 +275,39 @@ class _LazyJobPing:
                 finally:
                     active._active_trace["elapsed"] = time.monotonic() - t0
                     _trace_enabled.reset(token)
+
+            return wrapper
+
+        return decorator
+
+    # ------------------------------------------------------------------
+    # unwrap
+    # ------------------------------------------------------------------
+
+    def unwrap(
+        self,
+    ) -> Callable[[Callable[..., Awaitable[Result]]], Callable[..., Awaitable[Result]]]:
+        def decorator(
+            wrapped_callable: Callable[..., Awaitable[Result]],
+        ) -> Callable[..., Awaitable[Result]]:
+            @wraps(wrapped_callable)
+            async def wrapper(*args: Any, **kwargs: Any) -> Result:
+                if is_jobping_disabled():
+                    return await wrapped_callable(*args, **kwargs)
+
+                self._ensure_built_sync()
+                await self._maybe_rebuild()
+
+                result = await wrapped_callable(*args, **kwargs)
+                active = self.currentActive()
+                if not active.is_job_ref(result):
+                    return result
+
+                job_id = result["job_id"]
+                active.accept(job_id)
+                completed = await active.await_result(job_id, timeout=30.0)
+                active.release(job_id)
+                return completed.result
 
             return wrapper
 

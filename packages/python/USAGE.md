@@ -32,7 +32,7 @@ async def do_work(request: Request, request_id: int, sleep_seconds: float = 1.0)
     return {"request_id": request_id, "status": "OK"}
 ```
 
-## Client-side: wrap a callable
+## Client-side: unwrap a callable
 
 ```py
 import httpx
@@ -52,9 +52,9 @@ async def call_server(request_id: int) -> dict:
         )
         return resp.json()
 
-# Wrap the callable — JobPing transparently detects job_ref responses,
+# Unwrap the callable — JobPing transparently detects job_ref responses,
 # accepts them, awaits the result via WebSocket, and returns the final value.
-wrapped = jp.wrap()(call_server)
+wrapped = jp.unwrap()(call_server)
 result = await wrapped(42)
 ```
 

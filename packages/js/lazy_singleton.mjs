@@ -1,7 +1,7 @@
 // Lazy singleton proxy — the public face of JobPing v2 (JS).
 //
 // import { jp } from "jobping" gives you the module-level LazyJobPing instance.
-// No broker, no port binding until the first wrap() / wrapClient() / startBroker().
+// No broker, no port binding until the first wrap() / unwrap() / startBroker().
 //
 // Port of Python's _lazy_singleton.py to JavaScript.
 
@@ -98,14 +98,14 @@ export class LazyJobPing {
     };
   }
 
-  // -- wrapClient (client-side — existing JS behaviour) --------------------
+  // -- unwrap (client-side) -------------------------------------------------
   //
   //   1. Call the wrapped function.
   //   2. If the output is a job_ref: accept → awaitResult → release → return
   //      the unwrapped result.
   //   3. Otherwise return the output unchanged.
 
-  wrapClient(fn) {
+  unwrap(fn) {
     const self = this;
     return async function jobpingClientWrapped(...args) {
       if (isJobPingDisabled()) return fn(...args);

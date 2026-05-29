@@ -30,7 +30,7 @@ Request arrives → handler returns a ticket (job_ref) → connection freed imme
 - The side that **does the work** (producer): `offer` → `defer` → `fulfill`
 - The side that **waits** (consumer): `accept` → `awaitResult` → `release`
 
-`wrap()` automates both sides. You wrap your existing function and JobPing handles the ticket exchange transparently.
+`wrap()` and `unwrap()` automate both sides. You wrap (or unwrap) your existing function and JobPing handles the ticket exchange transparently.
 
 ## Quick start
 
@@ -83,7 +83,7 @@ res.end(JSON.stringify(result));
 Wrap your fetch. If the server returns a ticket, JobPing waits for the real result transparently.
 
 ```js
-const callServer = jobping.wrap(async (id) => {
+const callServer = jobping.unwrap(async (id) => {
   const resp = await fetch(`/work?request_id=${id}`);
   return resp.json();
 });
@@ -97,7 +97,7 @@ const result = await callServer(42);  // your code sees the final result
 <script type="module">
 import * as jp from "./jobping_browser.mjs";
 const jobping = jp.createJobPing();
-const callServer = jobping.wrap(async (id) => {
+const callServer = jobping.unwrap(async (id) => {
   const resp = await fetch(`/work?request_id=${id}`);
   return resp.json();
 });

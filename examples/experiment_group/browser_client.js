@@ -45,7 +45,7 @@ async function runExperiment() {
 
   const startedAt = performance.now();
 
-  const runOne = jobping.wrap(async (requestId) => {
+  const runOne = jobping.unwrap(async (requestId) => {
     const params = new URLSearchParams({
       request_id: String(requestId),
       sleep_seconds: String(sleepSeconds),

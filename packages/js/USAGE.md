@@ -16,7 +16,7 @@ const jobping = jp.createJobPing({
   queue: new jp.JPItemQueueInMemory(new jp.EnvelopeEndpointInMemory()),
 });
 
-const callServer = jobping.wrap(async (requestId) => {
+const callServer = jobping.unwrap(async (requestId) => {
   const jobId = crypto.randomUUID();
   const resp = await fetch(
     `http://127.0.0.1:8887/work?request_id=${requestId}&sleep_seconds=1`,
@@ -66,7 +66,7 @@ const jobping = jp.createJobPing({
   queue: new jp.JPItemQueueInMemory(new jp.EnvelopeEndpointInMemory()),
 });
 
-const callServer = jobping.wrap(async (requestId) => {
+const callServer = jobping.unwrap(async (requestId) => {
   const resp = await fetch(
     `http://127.0.0.1:8887/work?request_id=${requestId}`,
     { headers: { "x-jobping-job-id": crypto.randomUUID() } }

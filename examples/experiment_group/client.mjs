@@ -49,7 +49,7 @@ async function fetchJson(url, options) {
   return response.json();
 }
 
-const runOneRequest = jp.wrapClient(async function runOneRequest(requestId) {
+const runOneRequest = jp.unwrap(async function runOneRequest(requestId) {
   const params = new URLSearchParams({
     request_id: String(requestId),
     sleep_seconds: String(sleepSeconds),

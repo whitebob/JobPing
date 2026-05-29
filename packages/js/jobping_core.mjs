@@ -90,6 +90,22 @@ export class JobPing {
     }.bind(this);
   }
 
+  // -- unwrap (client-side — normal path) ----------------------------------
+
+  unwrap(wrappedCallable) {
+    return async function jobpingUnwrappedCallable(...args) {
+      if (isJobPingDisabled()) return wrappedCallable(...args);
+
+      const output = await wrappedCallable(...args);
+      if (!this.endpointProxy.isJobRef(output)) return output;
+
+      this.endpointProxy.accept(output.job_id);
+      const completedItem = await this.endpointProxy.awaitResult(output.job_id, { timeoutMs: 30000 });
+      this.endpointProxy.release(output.job_id);
+      return completedItem.result;
+    }.bind(this);
+  }
+
   // -- wrap_trace (debug / diagnostic path) -------------------------------
 
   wrap_trace(wrappedCallable) {

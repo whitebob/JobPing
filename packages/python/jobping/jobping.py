@@ -267,6 +267,35 @@ class JobPing:
 
         return decorator
 
+    # ------------------------------------------------------------------
+    # unwrap  (client-side — resolve JobRef responses)
+    # ------------------------------------------------------------------
+
+    def unwrap(
+        self,
+    ) -> Callable[[Callable[..., Awaitable[Result]]], Callable[..., Awaitable[Result]]]:
+        def decorator(
+            wrapped_callable: Callable[..., Awaitable[Result]],
+        ) -> Callable[..., Awaitable[Result]]:
+            @wraps(wrapped_callable)
+            async def wrapper(*args: Any, **kwargs: Any) -> Result:
+                if is_jobping_disabled():
+                    return await wrapped_callable(*args, **kwargs)
+
+                result = await wrapped_callable(*args, **kwargs)
+                if not self.endpoint_proxy.is_job_ref(result):
+                    return result
+
+                job_id = result["job_id"]
+                self.endpoint_proxy.accept(job_id)
+                completed = await self.endpoint_proxy.await_result(job_id, timeout=30.0)
+                self.endpoint_proxy.release(job_id)
+                return completed.result
+
+            return wrapper
+
+        return decorator
+
 
 JobPingClass = JobPing
 
