@@ -4,6 +4,9 @@ set -euo pipefail
 # Orchestration script for cross-tests: runs server/client pairs and ensures
 # proper startup/readiness and graceful shutdown.
 # Usage: COUNT=100 SLEEP=1 ./scripts/orchestrate_cross_tests.sh
+#
+# No standalone socket_broker.mjs needed — each experiment server embeds its own
+# broker, and experiment clients connect directly to it via peer_brokers.
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 cd "$ROOT"
@@ -37,30 +40,13 @@ wait_for_http() {
   done
 }
 
-wait_for_port() {
-  local host=$1
-  local port=$2
-  local timeout=${3:-30}
-  local start=$(date +%s)
-  while true; do
-    (echo > /dev/tcp/$host/$port) >/dev/null 2>&1 && return 0 || true
-    if [ $(( $(date +%s) - start )) -ge $timeout ]; then
-      return 1
-    fi
-    sleep 0.5
-  done
-}
-
-start_broker() {
-  echo "Starting broker..."
-  node examples/experiment_group/socket_broker.mjs >"$LOGDIR/broker.log" 2>&1 &
-  BROKER_PID=$!
-  echo "broker pid=$BROKER_PID"
-  if ! wait_for_port 127.0.0.1 "$BROKER_PORT" 10; then
-    echo "Broker failed to start (port $BROKER_PORT not open)"
-    return 1
+kill_if_running() {
+  local pid=$1
+  if [ -n "${pid:-}" ] && kill -0 "$pid" >/dev/null 2>&1; then
+    echo "Killing $pid"
+    kill "$pid" || true
+    wait "$pid" 2>/dev/null || true
   fi
-  return 0
 }
 
 start_control_server() {
@@ -79,7 +65,7 @@ start_control_server() {
 start_experiment_server() {
   echo "Starting experiment server (port 8887)..."
   WORKERS=${WORKERS:-1}
-  PYTHONPATH=packages/python:sandbox/python:. .venv/bin/uvicorn --workers "$WORKERS" examples.experiment_group.server:app --host 127.0.0.1 --port 8887 >"$LOGDIR/experiment_server.log" 2>&1 &
+  BROKER_PORT="$BROKER_PORT" PYTHONPATH=packages/python:sandbox/python:. .venv/bin/uvicorn --workers "$WORKERS" examples.experiment_group.server:app --host 127.0.0.1 --port 8887 >"$LOGDIR/experiment_server.log" 2>&1 &
   EXP_PID=$!
   echo "experiment pid=$EXP_PID (workers=$WORKERS)"
   if ! wait_for_http http://127.0.0.1:8887/metrics 10; then
@@ -105,15 +91,6 @@ start_experiment_client() {
   echo "experiment client pid=$CLIENT_PID"
 }
 
-kill_if_running() {
-  local pid=$1
-  if [ -n "${pid:-}" ] && kill -0 "$pid" >/dev/null 2>&1; then
-    echo "Killing $pid"
-    kill "$pid" || true
-    wait "$pid" 2>/dev/null || true
-  fi
-}
-
 run_pair() {
   local server_type=$1
   local client_type=$2
@@ -121,21 +98,15 @@ run_pair() {
   local out="$LOGDIR/${prefix}.out"
   echo "\n=== Running pair: server=$server_type client=$client_type ==="
 
-  # Start broker if either side is experiment
-  BROKER_PID=""
   CONTROL_PID=""
   EXP_PID=""
   CLIENT_PID=""
 
-  if [ "$server_type" = "experiment" ] || [ "$client_type" = "experiment" ]; then
-    start_broker || { echo "Failed to start broker"; return 1; }
-  fi
-
   if [ "$server_type" = "control" ]; then
-    start_control_server || { echo "Failed to start control server"; kill_if_running "$BROKER_PID"; return 1; }
+    start_control_server || { echo "Failed to start control server"; return 1; }
     SERVER_URL="http://127.0.0.1:8888"
   else
-    start_experiment_server || { echo "Failed to start experiment server"; kill_if_running "$BROKER_PID"; return 1; }
+    start_experiment_server || { echo "Failed to start experiment server"; return 1; }
     SERVER_URL="http://127.0.0.1:8887"
   fi
 
@@ -166,10 +137,8 @@ run_pair() {
     echo "Failed to fetch metrics from $SERVER_URL"
   fi
 
-  # Stop server and broker
   kill_if_running "$CONTROL_PID"
   kill_if_running "$EXP_PID"
-  kill_if_running "$BROKER_PID"
 
   echo "Pair ${prefix} finished; logs: $out"
 }

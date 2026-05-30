@@ -19,7 +19,6 @@
     "control:browser": "python3 -m http.server 8898 --directory examples/control_group",
     "experiment:server": "PYTHONPATH=packages/python:sandbox/python:. uvicorn examples.experiment_group.server:app --host 127.0.0.1 --port 8887",
     "experiment:client": "node examples/experiment_group/client.mjs",
-    "experiment:broker": "node examples/experiment_group/socket_broker.mjs",
     "build:browser": "node scripts/build_browser_bundle.mjs",
     "build:dist": "bash scripts/build_dist.sh"
   },

@@ -13,22 +13,9 @@ export PYTHONPATH="packages/python:sandbox/python:.:${PYTHONPATH:-}"
 LOGDIR=./tmp/browser_test
 mkdir -p "$LOGDIR"
 
-# Start broker
-echo "Starting broker..."
-node examples/experiment_group/socket_broker.mjs >"$LOGDIR/broker.log" 2>&1 &
-BROKER_PID=$!
-sleep 1
-
-if ! (echo > /dev/tcp/127.0.0.1/8890) 2>/dev/null; then
-  echo "Broker failed to start"
-  kill "$BROKER_PID" 2>/dev/null || true
-  exit 1
-fi
-echo "Broker OK (pid=$BROKER_PID)"
-
-# Start server
-echo "Starting server..."
-BROKER_URL=http://127.0.0.1:8890 uvicorn examples.experiment_group.server:app --host 127.0.0.1 --port 8887 >"$LOGDIR/server.log" 2>&1 &
+# Start server with embedded broker on port 8890
+echo "Starting server (embedded broker on port 8890)..."
+BROKER_PORT=8890 uvicorn examples.experiment_group.server:app --host 127.0.0.1 --port 8887 >"$LOGDIR/server.log" 2>&1 &
 SERVER_PID=$!
 sleep 3
 
@@ -41,7 +28,7 @@ for i in $(seq 1 15); do
   if [ "$i" -eq 15 ]; then
     echo "Server failed to start"
     cat "$LOGDIR/server.log"
-    kill "$BROKER_PID" "$SERVER_PID" 2>/dev/null || true
+    kill "$SERVER_PID" 2>/dev/null || true
     exit 1
   fi
   sleep 0.5
@@ -71,7 +58,7 @@ curl -sS http://127.0.0.1:8887/metrics
 echo ""
 
 # Cleanup
-kill "$SERVER_PID" "$BROKER_PID" 2>/dev/null || true
+kill "$SERVER_PID" 2>/dev/null || true
 wait 2>/dev/null || true
 echo ""
 echo "All tests passed"

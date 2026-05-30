@@ -25,23 +25,18 @@ async function waitForUrl(url, timeout = 5000) {
 }
 
 (async () => {
-  const broker = startProcess("node", ["examples/experiment_group/socket_broker.mjs"]);
-
-  // Start uvicorn server
+  // Start uvicorn server with embedded broker on port 8890
   const uvicorn = startProcess(
     ".venv/bin/uvicorn",
     ["examples.experiment_group.server:app", "--host", "127.0.0.1", "--port", "8887"],
-    { env: { ...process.env, PYTHONPATH: "packages/python:sandbox/python:." } },
+    { env: { ...process.env, PYTHONPATH: "packages/python:sandbox/python:.", BROKER_PORT: "8890" } },
   );
 
   try {
-    // broker has no HTTP endpoint; just wait a moment to let it bind
-    await new Promise((r) => setTimeout(r, 300));
-
     const serverReady = await waitForUrl("http://127.0.0.1:8887/metrics", 5000);
     if (!serverReady) throw new Error("server did not become ready");
 
-    // run client with small workload
+    // run client with small workload, connecting to server's embedded broker
     const client = startProcess("node", ["examples/experiment_group/client.mjs", "--count=5", "--sleepSeconds=0.05", "--serverUrl=http://127.0.0.1:8887", "--brokerUrl=http://127.0.0.1:8890"]);
 
     await new Promise((resolve, reject) => {
@@ -53,7 +48,6 @@ async function waitForUrl(url, timeout = 5000) {
 
     console.log("experiment client finished");
   } finally {
-    broker.kill();
     uvicorn.kill();
   }
 })();

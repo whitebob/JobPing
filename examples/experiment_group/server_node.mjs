@@ -37,9 +37,9 @@ function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-const BROKER_URL = process.env.BROKER_URL || 'http://127.0.0.1:8890';
+const BROKER_PORT = Number(process.env.BROKER_PORT || 8890);
 
-jp.configure({ brokerPort: 0, peerBrokers: [BROKER_URL] });
+jp.configure({ brokerPort: BROKER_PORT });
 
 // Server-side wrap: if the request carries a job-id header the handler is
 // deferred and a job_ref is returned immediately; otherwise it runs inline.
@@ -106,5 +106,5 @@ const server = http.createServer(async (req, res) => {
 const PORT = Number(process.env.PORT || 8887);
 await jp.startBroker();
 server.listen(PORT, '127.0.0.1', () => {
-  console.log(`node experiment server listening on http://127.0.0.1:${PORT} broker=${BROKER_URL}`);
+  console.log(`node experiment server listening on http://127.0.0.1:${PORT} broker_port=${BROKER_PORT}`);
 });

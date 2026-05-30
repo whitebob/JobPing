@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Cross-test: Node servers (control/experiment) x Node clients (control/experiment)
+# Usage: COUNT=200 SLEEP=20 ./scripts/orchestrate_cross_tests_node_servers.sh
+#
+# All components are Node.js. Each experiment server embeds its own broker;
+# experiment clients connect directly to the server's broker.
+
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 cd "$ROOT"
 
@@ -30,21 +36,6 @@ wait_for_http() {
   done
 }
 
-start_broker() {
-  echo "Starting broker..."
-  node examples/experiment_group/socket_broker.mjs >"$LOGDIR/broker.log" 2>&1 &
-  BROKER_PID=$!
-  echo "broker pid=$BROKER_PID"
-  if ! wait_for_http "${BROKER_URL}" 10; then
-    # broker doesn't expose http root, check port
-    if ! (echo > /dev/tcp/127.0.0.1/${BROKER_PORT}) >/dev/null 2>&1; then
-      echo "Broker failed to start (port $BROKER_PORT)"
-      return 1
-    fi
-  fi
-  return 0
-}
-
 start_node_control_server() {
   echo "Starting node control server (port 8888)..."
   PORT=8888 node examples/control_group/server_node.mjs >"$LOGDIR/control_server_node.log" 2>&1 &
@@ -59,7 +50,7 @@ start_node_control_server() {
 
 start_node_experiment_server() {
   echo "Starting node experiment server (port 8887)..."
-  PORT=8887 BROKER_URL="$BROKER_URL" node examples/experiment_group/server_node.mjs >"$LOGDIR/experiment_server_node.log" 2>&1 &
+  PORT=8887 BROKER_PORT="$BROKER_PORT" node examples/experiment_group/server_node.mjs >"$LOGDIR/experiment_server_node.log" 2>&1 &
   EXP_PID=$!
   echo "experiment node pid=$EXP_PID"
   if ! wait_for_http http://127.0.0.1:8887/metrics 10; then
@@ -103,18 +94,15 @@ run_pair() {
   local out="$LOGDIR/${prefix}.out"
   echo "\n=== Running pair: server=$server_type(client=node) client=$client_type ==="
 
-  BROKER_PID=""
   CONTROL_PID=""
   EXP_PID=""
   CLIENT_PID=""
 
-  start_broker || { echo "Failed to start broker"; return 1; }
-
   if [ "$server_type" = "control" ]; then
-    start_node_control_server || { echo "Failed to start control node server"; kill_if_running "$BROKER_PID"; return 1; }
+    start_node_control_server || { echo "Failed to start control node server"; return 1; }
     SERVER_URL="http://127.0.0.1:8888"
   else
-    start_node_experiment_server || { echo "Failed to start experiment node server"; kill_if_running "$BROKER_PID"; return 1; }
+    start_node_experiment_server || { echo "Failed to start experiment node server"; return 1; }
     SERVER_URL="http://127.0.0.1:8887"
   fi
 
@@ -147,7 +135,6 @@ run_pair() {
 
   kill_if_running "$CONTROL_PID"
   kill_if_running "$EXP_PID"
-  kill_if_running "$BROKER_PID"
 
   echo "Pair ${prefix} finished; logs: $out"
 }
@@ -168,4 +155,4 @@ for p in "${pairs[@]}"; do
   sleep 0.5
 done
 
-echo "All node/server pairs completed. Logs in $LOGDIR" 
+echo "All node/server pairs completed. Logs in $LOGDIR"

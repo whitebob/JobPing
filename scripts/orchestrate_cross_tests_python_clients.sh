@@ -3,6 +3,9 @@ set -euo pipefail
 
 # Cross-test orchestrator: Python servers (control/experiment) x Python clients (control/experiment)
 # Usage: COUNT=100 SLEEP=1 WORKERS=1 ./scripts/orchestrate_cross_tests_python_clients.sh
+#
+# No standalone socket_broker.mjs needed — each experiment server embeds its own
+# broker, and experiment clients connect directly to it via peer_brokers.
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 cd "$ROOT"
@@ -62,27 +65,6 @@ kill_if_running() {
   fi
 }
 
-start_broker() {
-  echo "Starting broker..."
-  node examples/experiment_group/socket_broker.mjs >"$LOGDIR/broker.log" 2>&1 &
-  BROKER_PID=$!
-  echo "broker pid=$BROKER_PID"
-  if ! wait_for_http "${BROKER_URL}" 10; then
-    # broker is socket.io, not HTTP — check port directly
-    local start
-    start=$(date +%s)
-    while true; do
-      (echo > /dev/tcp/127.0.0.1/${BROKER_PORT}) >/dev/null 2>&1 && return 0 || true
-      if [ $(( $(date +%s) - start )) -ge 10 ]; then
-        echo "Broker failed to start (port $BROKER_PORT not open)"
-        return 1
-      fi
-      sleep 0.2
-    done
-  fi
-  return 0
-}
-
 start_server() {
   local kind=$1
   local port=$2
@@ -92,7 +74,7 @@ start_server() {
   if [ "$kind" = "control" ]; then
     $UVICORN examples.control_group.server:app --host 127.0.0.1 --port "$port" --workers "$WORKERS" >"$log" 2>&1 &
   else
-    $UVICORN examples.experiment_group.server:app --host 127.0.0.1 --port "$port" --workers "$WORKERS" >"$log" 2>&1 &
+    BROKER_PORT="$BROKER_PORT" $UVICORN examples.experiment_group.server:app --host 127.0.0.1 --port "$port" --workers "$WORKERS" >"$log" 2>&1 &
   fi
   pid=$!
   echo "$pid"
@@ -119,13 +101,6 @@ for server_kind in control experiment; do
     echo ""
     echo "=== Pair: server=$server_kind client=$client_kind ==="
 
-    BROKER_PID=""
-
-    # Start broker if either side is experiment
-    if [ "$server_kind" = "experiment" ] || [ "$client_kind" = "experiment" ]; then
-      start_broker || { echo "Failed to start broker"; exit 1; }
-    fi
-
     if [ "$server_kind" = "control" ]; then
       server_port="$CONTROL_PORT"
     else
@@ -140,7 +115,6 @@ for server_kind in control experiment; do
     if ! wait_for_http "http://127.0.0.1:${server_port}/metrics" 15; then
       echo "Server failed to become ready"
       kill_if_running "$SERVER_PID"
-      kill_if_running "$BROKER_PID"
       continue
     fi
     sleep 0.5
@@ -157,7 +131,6 @@ for server_kind in control experiment; do
     fi
 
     kill_if_running "$SERVER_PID"
-    kill_if_running "$BROKER_PID"
     sleep 0.5
   done
 done

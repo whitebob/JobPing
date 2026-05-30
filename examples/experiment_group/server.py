@@ -18,12 +18,8 @@ from jobping import jp
 import os
 
 BROKER_PORT = int(os.environ.get("BROKER_PORT", "8900"))
-BROKER_URL = os.environ.get("BROKER_URL", os.environ.get("JOBPING_WS_URL", "http://127.0.0.1:8890"))
 
-jp.configure(
-    broker_port=BROKER_PORT,
-    peer_brokers=[BROKER_URL],
-)
+jp.configure(broker_port=BROKER_PORT)
 
 
 app = FastAPI(title="JobPing experiment group")

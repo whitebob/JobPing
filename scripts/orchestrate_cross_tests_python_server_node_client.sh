@@ -3,6 +3,9 @@ set -euo pipefail
 
 # Cross-test: Python servers (control/experiment) x Node clients (control/experiment)
 # Usage: COUNT=200 SLEEP=20 ./scripts/orchestrate_cross_tests_python_server_node_client.sh
+#
+# No standalone socket_broker.mjs needed — each experiment server embeds its own
+# broker, and experiment clients connect directly to it via peer_brokers.
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 cd "$ROOT"
@@ -50,22 +53,6 @@ kill_if_running() {
   fi
 }
 
-start_broker() {
-  echo "Starting broker..."
-  node examples/experiment_group/socket_broker.mjs >"$LOGDIR/broker.log" 2>&1 &
-  BROKER_PID=$!
-  echo "broker pid=$BROKER_PID"
-  local start=$(date +%s)
-  while true; do
-    (echo > /dev/tcp/127.0.0.1/${BROKER_PORT}) >/dev/null 2>&1 && return 0 || true
-    if [ $(( $(date +%s) - start )) -ge 10 ]; then
-      echo "Broker failed to start (port $BROKER_PORT not open)"
-      return 1
-    fi
-    sleep 0.2
-  done
-}
-
 start_python_control_server() {
   echo "Starting python control server (port 8888)..."
   $UVICORN examples.control_group.server:app --host 127.0.0.1 --port 8888 >"$LOGDIR/control_server_python.log" 2>&1 &
@@ -79,7 +66,7 @@ start_python_control_server() {
 
 start_python_experiment_server() {
   echo "Starting python experiment server (port 8887)..."
-  $UVICORN examples.experiment_group.server:app --host 127.0.0.1 --port 8887 >"$LOGDIR/experiment_server_python.log" 2>&1 &
+  BROKER_PORT="$BROKER_PORT" $UVICORN examples.experiment_group.server:app --host 127.0.0.1 --port 8887 >"$LOGDIR/experiment_server_python.log" 2>&1 &
   PY_SERVER_PID=$!
   echo "python experiment server pid=$PY_SERVER_PID"
   if ! wait_for_http http://127.0.0.1:8887/metrics 15; then
@@ -96,18 +83,13 @@ run_pair() {
   echo ""
   echo "=== Running pair: server=python_${server_type} client=node_${client_type} ==="
 
-  BROKER_PID=""
   PY_SERVER_PID=""
 
-  if [ "$server_type" = "experiment" ] || [ "$client_type" = "experiment" ]; then
-    start_broker || { echo "Failed to start broker"; return 1; }
-  fi
-
   if [ "$server_type" = "control" ]; then
-    start_python_control_server || { kill_if_running "$BROKER_PID"; return 1; }
+    start_python_control_server || { return 1; }
     SERVER_URL="http://127.0.0.1:8888"
   else
-    start_python_experiment_server || { kill_if_running "$BROKER_PID"; return 1; }
+    start_python_experiment_server || { return 1; }
     SERVER_URL="http://127.0.0.1:8887"
   fi
 
@@ -129,7 +111,6 @@ run_pair() {
   fi
 
   kill_if_running "$PY_SERVER_PID"
-  kill_if_running "$BROKER_PID"
 
   echo "Pair ${prefix} finished"
 }

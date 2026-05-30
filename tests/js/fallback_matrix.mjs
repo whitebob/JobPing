@@ -5,68 +5,7 @@ const PYTHON = ".venv/bin/python";
 const REQUEST_COUNT = 3;
 const SLEEP_SECONDS = 0.05;
 const BROKER_PORT = 8890;
-
-let brokerProcess;
-
-function startBroker() {
-  return new Promise((resolve, reject) => {
-    brokerProcess = spawn(
-      process.execPath,
-      ["examples/experiment_group/socket_broker.mjs"],
-      {
-        env: { ...process.env, SOCKET_BROKER_PORT: String(BROKER_PORT) },
-        stdio: ["ignore", "pipe", "pipe"],
-      },
-    );
-
-    let settled = false;
-    let stderr = "";
-    const timer = setTimeout(() => {
-      if (!settled) {
-        settled = true;
-        const detail = stderr ? ` (stderr: ${stderr})` : "";
-        reject(new Error(`Broker did not start within 5 seconds${detail}`));
-      }
-    }, 5000);
-
-    brokerProcess.stdout.on("data", (chunk) => {
-      if (!settled && chunk.toString().includes("listening")) {
-        settled = true;
-        clearTimeout(timer);
-        resolve();
-      }
-    });
-
-    brokerProcess.stderr.on("data", (chunk) => {
-      stderr += chunk.toString();
-    });
-
-    brokerProcess.on("exit", (code) => {
-      if (!settled) {
-        settled = true;
-        clearTimeout(timer);
-        const detail = stderr ? ` (stderr: ${stderr})` : "";
-        reject(new Error(`Broker exited early with code ${code}${detail}`));
-      }
-    });
-  });
-}
-
-async function stopBroker() {
-  if (!brokerProcess || brokerProcess.exitCode !== null || brokerProcess.signalCode !== null) {
-    return;
-  }
-
-  await new Promise((resolve) => {
-    brokerProcess.once("exit", resolve);
-    brokerProcess.kill("SIGTERM");
-    setTimeout(() => {
-      if (brokerProcess.exitCode === null && brokerProcess.signalCode === null) {
-        brokerProcess.kill("SIGKILL");
-      }
-    }, 1000).unref();
-  });
-}
+const BROKER_URL = `http://127.0.0.1:${BROKER_PORT}`;
 
 const servers = [
   {
@@ -97,6 +36,16 @@ if (!existsSync(PYTHON)) {
 }
 
 function startServer(server) {
+  const env = {
+    ...process.env,
+    PYTHONPATH: ["packages/python", "sandbox/python", ".", process.env.PYTHONPATH]
+      .filter(Boolean)
+      .join(":"),
+  };
+  if (server.name.includes("JP mock")) {
+    env.BROKER_PORT = String(BROKER_PORT);
+  }
+
   const child = spawn(
     PYTHON,
     [
@@ -109,12 +58,7 @@ function startServer(server) {
       String(server.port),
     ],
     {
-      env: {
-        ...process.env,
-        PYTHONPATH: ["packages/python", "sandbox/python", ".", process.env.PYTHONPATH]
-          .filter(Boolean)
-          .join(":"),
-      },
+      env,
       stdio: ["ignore", "pipe", "pipe"],
     },
   );
@@ -184,14 +128,19 @@ async function waitForServer(server) {
 
 async function runClient(client, server) {
   const serverUrl = `http://127.0.0.1:${server.port}`;
+  const args = [
+    client.script,
+    `--count=${REQUEST_COUNT}`,
+    `--sleepSeconds=${SLEEP_SECONDS}`,
+    `--serverUrl=${serverUrl}`,
+  ];
+  if (client.name.includes("JP mock")) {
+    args.push(`--brokerUrl=${BROKER_URL}`);
+  }
+
   const child = spawn(
     process.execPath,
-    [
-      client.script,
-      `--count=${REQUEST_COUNT}`,
-      `--sleepSeconds=${SLEEP_SECONDS}`,
-      `--serverUrl=${serverUrl}`,
-    ],
+    args,
     {
       stdio: ["ignore", "pipe", "pipe"],
     },
@@ -280,7 +229,6 @@ const runningServers = servers.map(startServer);
 
 try {
   await Promise.all(runningServers.map(waitForServer));
-  await startBroker();
 
   for (const server of runningServers) {
     for (const client of clients) {
@@ -296,5 +244,4 @@ try {
   }
 } finally {
   await Promise.all(runningServers.map(stopServer));
-  await stopBroker();
 }
